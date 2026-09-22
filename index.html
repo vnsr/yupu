@@ -13,10 +13,10 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>">
 <title>Yupu baby</title>
 <style>
-:root{--bg:#F3F5F9;--surface:#FFFFFF;--surface2:#E8ECF3;--ink:#1B2233;--muted:#667085;--line:#DDE2EB;--feed:#E0883C;--sleep:#5566D0;--diaper:#2F9483;--solids:#D35A22;--growth:#A5467D;--danger:#C2392F;--on:#FFFFFF;color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0F141D;--surface:#181F2C;--surface2:#232B3B;--ink:#E6E9F0;--muted:#8D96A8;--line:#2A3243;--feed:#F0A15C;--sleep:#8190F0;--diaper:#4DB8A5;--solids:#F07A42;--growth:#D573AB;--danger:#F0685C;--on:#0F141D;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#0F141D;--surface:#181F2C;--surface2:#232B3B;--ink:#E6E9F0;--muted:#8D96A8;--line:#2A3243;--feed:#F0A15C;--sleep:#8190F0;--diaper:#4DB8A5;--solids:#F07A42;--growth:#D573AB;--danger:#F0685C;--on:#0F141D;color-scheme:dark}
-:root[data-theme="red"]{--bg:#000000;--surface:#130302;--surface2:#210604;--ink:#E0493A;--muted:#8E2A20;--line:#2B0906;--feed:#D8442F;--sleep:#98291D;--diaper:#B8392A;--solids:#E0553F;--growth:#A02C20;--danger:#FF5A45;--on:#000000;color-scheme:dark}
+:root{--bg:#F3F5F9;--surface:#FFFFFF;--surface2:#E8ECF3;--ink:#1B2233;--muted:#667085;--line:#DDE2EB;--feed:#E0883C;--sleep:#5566D0;--diaper:#2F9483;--solids:#D35A22;--growth:#A5467D;--danger:#C2392F;--vit:#B7860B;--on:#FFFFFF;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0F141D;--surface:#181F2C;--surface2:#232B3B;--ink:#E6E9F0;--muted:#8D96A8;--line:#2A3243;--feed:#F0A15C;--sleep:#8190F0;--diaper:#4DB8A5;--solids:#F07A42;--growth:#D573AB;--danger:#F0685C;--vit:#E3B341;--on:#0F141D;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0F141D;--surface:#181F2C;--surface2:#232B3B;--ink:#E6E9F0;--muted:#8D96A8;--line:#2A3243;--feed:#F0A15C;--sleep:#8190F0;--diaper:#4DB8A5;--solids:#F07A42;--growth:#D573AB;--danger:#F0685C;--vit:#E3B341;--on:#0F141D;color-scheme:dark}
+:root[data-theme="red"]{--bg:#000000;--surface:#130302;--surface2:#210604;--ink:#E0493A;--muted:#8E2A20;--line:#2B0906;--feed:#D8442F;--sleep:#98291D;--diaper:#B8392A;--solids:#E0553F;--growth:#A02C20;--danger:#FF5A45;--vit:#C9412E;--on:#000000;color-scheme:dark}
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%;height:100%}
 body{font-family:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.4;font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent;min-height:100%}
@@ -28,6 +28,17 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(env
 .who{flex:1;min-width:0}.who h1{font-size:24px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}.who p{font-size:14px;color:var(--muted)}
 .icon-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);flex:none}
 .icon-btn svg{width:20px;height:20px}.icon-btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.icon-btn{position:relative}.icon-btn.alert::after{content:"";position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;background:var(--danger);border:2px solid var(--bg)}
+.adj{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:12px 0 0;font-size:13px;color:var(--muted)}
+.adj button{padding:6px 11px;border-radius:999px;background:var(--surface2);color:var(--ink);font-size:13px;font-weight:600}
+.timer-top button{color:var(--muted);font-size:14px;text-decoration:underline;text-underline-offset:3px}
+.presets.ago{margin:-4px 0 12px}.presets.ago .chip{padding:5px 11px;font-size:13px}
+.vit{width:100%;display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px 14px;margin:10px 0 0;text-align:left}
+.vit svg{width:26px;height:26px;color:var(--vit);flex:none}.vit span{flex:1;min-width:0}.vit b{display:block;font-size:16px}.vit small{color:var(--muted);font-size:13px}
+.vit i{font-style:normal;font-weight:700;background:var(--vit);color:var(--on);padding:8px 16px;border-radius:12px}
+.vit.done i{background:transparent;color:var(--vit);padding:0 4px;font-size:15px}
+.syncbox{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:10px;font-size:14px}.syncbox span{flex:1}
+.syncbox.err{border-color:var(--danger);color:var(--danger)}
 main{padding:4px 16px calc(100px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;justify-content:center;background:var(--surface);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
 .tab{flex:1;max-width:110px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:4px 0}
@@ -155,6 +166,7 @@ const DKIND = {wet:'Wet',dirty:'Dirty',both:'Wet and dirty',dry:'Dry'};
 /* ---------- icons ---------- */
 const ic = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const I = {
+  pill: ic('<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>'),
   note: ic('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>'),
   drop: ic('<path d="M12 3c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11z"/>'),
   bottle: ic('<path d="M9.5 2h5M10.5 2v3L8 8.5V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V8.5L13.5 5V2M8 12h8M8 16h8"/>'),
@@ -170,9 +182,9 @@ const I = {
 };
 
 /* ---------- state ---------- */
-function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',night:false,syncFolder:'',updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0};}
+function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',night:false,syncFolder:'',updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0,sync:{repo:'',token:'',on:false,shas:{},dirty:{},last:0,err:''}};}
 function load(){
-  try{const raw=localStorage.getItem(KEY);if(raw){const d=JSON.parse(raw),b=blank();return {...b,...d,settings:{...b.settings,...d.settings},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},events:Array.isArray(d.events)?d.events:[]};}}catch(e){}
+  try{const raw=localStorage.getItem(KEY);if(raw){const d=JSON.parse(raw),b=blank();return {...b,...d,settings:{...b.settings,...d.settings},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},sync:{...b.sync,...(d.sync||{})},events:Array.isArray(d.events)?d.events:[]};}}catch(e){}
   return blank();
 }
 let S = load();
@@ -226,14 +238,14 @@ function upsert(e){
   e.updatedAt=Date.now();
   if(e.by==null) e.by=S.settings.device||'';
   const i=S.events.findIndex(x=>x.id===e.id);
-  if(i>=0) S.events[i]=e; else S.events.push(e);
-  save();
+  if(i>=0){markDirty(monthKey(S.events[i].start));S.events[i]=e;} else S.events.push(e);
+  markDirty(monthKey(e.start));save();
 }
 function removeEv(id){
   const i=S.events.findIndex(x=>x.id===id);if(i<0) return null;
   const old=S.events[i];
   S.events[i]={id,type:old.type,start:old.start,deleted:true,updatedAt:Date.now()};
-  save();return old;
+  markDirty(monthKey(old.start));save();return old;
 }
 function describe(e){
   const d=e.data||{};
@@ -320,19 +332,22 @@ function row(e){
 function vToday(){
   const n=Date.now(),ev=live(),a=S.active;let h='';
   if(!S.settings.dob) h+=`<div class="nudge"><span>Add your baby's name and birthday to see age and growth curves.</span><button class="btn small primary" data-act="settings">Set up</button></div>`;
-  else if(S.events.length>20 && n-(S.lastBackup||0)>7*864e5) h+=`<div class="nudge"><span>${S.lastBackup?`Last backup ${daysBetween(S.lastBackup,n)} days ago.`:'No backup yet.'} iPhone can clear web app data, so keep a copy.</span><button class="btn small" data-act="sync-now">Sync now</button></div>`;
+  else if(S.sync.on&&S.sync.err) h+=`<div class="nudge" style="border-color:var(--danger)"><span>Sync paused. ${esc(S.sync.err)}</span><button class="btn small" data-act="settings">Settings</button></div>`;
+  else if(!S.sync.on&&S.events.length>20 && n-(S.lastBackup||0)>7*864e5) h+=`<div class="nudge"><span>${S.lastBackup?`Last backup ${daysBetween(S.lastBackup,n)} days ago.`:'No backup yet.'} iPhone can clear web app data, so keep a copy.</span><button class="btn small" data-act="backup">Back up</button></div>`;
   if(a.nurse){
     const cur=curSide(a.nurse),last=lastSide(a.nurse),other=last==='l'?'r':'l';
-    h+=`<section class="timer c-feed"><div class="timer-top"><b>${cur?'Nursing':'Nursing, paused'}</b><span>started ${hm(a.nurse.start)}</span></div>
+    h+=`<section class="timer c-feed"><div class="timer-top"><b>${cur?'Nursing':'Nursing, paused'}</b><button data-act="adj-open" data-k="nurse">started ${hm(a.nurse.start)}</button></div>
       <div class="timer-big" data-tick="nt">00:00</div>
       <div class="sides"><div class="side ${cur==='l'?'on':''}"><b>Left</b><span data-tick="nl">00:00</span></div><div class="side ${cur==='r'?'on':''}"><b>Right</b><span data-tick="nr">00:00</span></div></div>
       <div class="row-btns"><button class="btn" data-act="nurse-side" data-side="${other}">Switch to ${other==='l'?'left':'right'}</button><button class="btn" data-act="nurse-pause">${cur?'Pause':'Resume'}</button><button class="btn primary" data-act="nurse-done">Done</button></div>
+      <div class="adj"><span>Started earlier?</span><button data-act="adj" data-k="nurse" data-m="5">−5 min</button><button data-act="adj" data-k="nurse" data-m="10">−10</button><button data-act="adj" data-k="nurse" data-m="15">−15</button><button data-act="adj-open" data-k="nurse">Set time</button></div>
       <button class="link" data-act="nurse-discard">Discard this feed</button></section>`;
   }
   if(a.sleep){
-    h+=`<section class="timer c-sleep"><div class="timer-top"><b>Asleep</b><span>since ${hm(a.sleep.start)}</span></div>
+    h+=`<section class="timer c-sleep"><div class="timer-top"><b>Asleep</b><button data-act="adj-open" data-k="sleep">since ${hm(a.sleep.start)}</button></div>
       <div class="timer-big" data-since="${a.sleep.start}" data-fmt="s"></div>
       <div class="row-btns"><button class="btn primary" data-act="sleep-stop">Woke up</button></div>
+      <div class="adj"><span>Started earlier?</span><button data-act="adj" data-k="sleep" data-m="5">−5 min</button><button data-act="adj" data-k="sleep" data-m="10">−10</button><button data-act="adj" data-k="sleep" data-m="15">−15</button><button data-act="adj-open" data-k="sleep">Set time</button></div>
       <button class="link" data-act="sleep-discard">Discard this sleep</button></section>`;
   }
   h+=`<div class="ring-wrap">${ring(ev,n)}</div>`;
@@ -349,6 +364,9 @@ function vToday(){
     ${a.sleep?`<button class="act c-sleep live" data-act="sleep-stop">${I.sun}<span>Woke up</span></button>`:`<button class="act c-sleep" data-act="sleep-start">${I.moon}<span>Sleep</span></button>`}
     <button class="act c-diaper" data-act="new" data-type="diaper">${I.diaper}<span>Diaper</span></button>
     <button class="act c-solids" data-act="new" data-type="solids">${I.spoon}<span>Solids</span></button></div>`;
+  const vit=ev.find(e=>isVit(e)&&e.start>=dayStart(n));
+  h+=vit?`<button class="vit done" data-act="edit" data-id="${vit.id}">${I.pill}<span><b>Vitamin D</b><small>Given today at ${hm(vit.start)}</small></span><i>Done ✓</i></button>`
+       :`<button class="vit" data-act="vit">${I.pill}<span><b>Vitamin D</b><small>Not given yet today</small></span><i>Give</i></button>`;
   const ds=dayStart(n),st=dayStats(ds,addDays(ds,1),ev,n);
   const fx=[];if(st.nurseMin)fx.push(`${Math.round(st.nurseMin)} min nursing`);if(st.ml)fx.push(`${st.ml} ml bottle`);
   h+=`<h2 class="sec">Today so far</h2><div class="totals">
@@ -575,7 +593,8 @@ function openEditor(type,e,prefill){
   if(isNew&&type==='sleep'){e.start=n-36e5;e.end=n;}
   ed=e;ed._new=isNew;
   const d=e.data;let f=`<h2>${isNew?'New':'Edit'} ${LABEL[type].toLowerCase()}</h2>`;
-  const time=(label='Time')=>fld(label,`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`);
+  const ago=(id,list=[0,5,10,15,30])=>`<div class="presets ago">${list.map(m=>`<button type="button" class="chip" data-act="ago" data-t="${id}" data-m="${m}">${m?m+' min ago':'Now'}</button>`).join('')}</div>`;
+  const time=(label='Time')=>fld(label,`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start');
   const note=()=>fld('Note',`<textarea id="f-note" rows="2" placeholder="optional">${esc(d.note||'')}</textarea>`);
   switch(type){
     case 'nurse':
@@ -588,8 +607,8 @@ function openEditor(type,e,prefill){
       f+=fldD('Amount (ml)',`<div class="stepper"><button type="button" data-act="step" data-t="f-ml" data-d="-10" aria-label="Less">−</button>${txt('f-ml',ml,'numeric')}<button type="button" data-act="step" data-t="f-ml" data-d="10" aria-label="More">+</button></div><div class="presets">${[60,90,120,150,180,210].map(v=>`<button type="button" class="chip" data-act="setv" data-t="f-ml" data-v="${v}">${v}</button>`).join('')}</div>`);
       f+=fldD('Milk',seg('f-kind',[['breastmilk','Breast milk'],['formula','Formula']],d.kind||S.prefs.kind));f+=note();break;}
     case 'sleep':
-      f+=fld('Fell asleep',`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`);
-      f+=fld('Woke up',`<input id="f-end" type="datetime-local" value="${toInput(e.end)}">`);f+=note();break;
+      f+=fld('Fell asleep',`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start',[15,30,60,90,120]);
+      f+=fld('Woke up',`<input id="f-end" type="datetime-local" value="${toInput(e.end)}">`)+ago('f-end');f+=note();break;
     case 'diaper':
       f+=time();
       f+=`<div class="two">${fld('Temperature (°C)',txt('f-temp',d.temp??'','decimal','optional'))}${fld('Note',`<input id="f-note" type="text" value="${esc(d.note||'')}" placeholder="optional" autocomplete="off">`)}</div>`;
@@ -682,23 +701,33 @@ function openSettings(welcome){
   f+=`<div class="set-sec">This phone</div>${fld('Your name on this phone',`<input id="s-dev" value="${esc(st.device)}" placeholder="e.g. Dad" autocomplete="off">`)}<p class="muted" style="margin:-6px 2px 12px">Shown on entries after you merge with your partner's phone.</p>${fldD('Appearance',seg('s-theme',[['auto','Auto'],['light','Light'],['dark','Dark']],st.theme||'auto'))}`;
   f+=`<button class="btn primary" style="width:100%" data-act="set-save">${welcome?'Start':'Save'}</button>`;
   if(!welcome){
-    f+=`<div class="set-sec">Sync with partner</div>${fld('Shared iCloud folder name',`<input id="s-syncfolder" value="${esc(st.syncFolder||'')}" placeholder="e.g. Yupu Backups" autocomplete="off">`)}
-      <p class="muted" style="margin:-6px 2px 12px">This is just a reminder label. iPhone has no way for the app to open a folder by itself, so Sync now still opens the normal Save and Import screens — but it remembers the last place you used, and this name tells you which one to pick.</p>
-      <p class="muted" style="margin-bottom:10px">${S.lastBackup?`Last backup ${dateStr(S.lastBackup)}.`:'No backup yet.'} Set up a shared iCloud Drive folder with your partner once (Files app → New Folder → Share), then use Sync now here.</p>
-      <button class="btn primary" style="width:100%;margin-bottom:8px" data-act="sync-now">Sync now</button>
-      <p class="muted" style="margin:0 0 14px">Saves your backup, then prompts you to import your partner's. Two taps: Save to Files, then pick the file(s).</p>
-      <div class="set-sec">Manual options</div>
-      <div class="stack"><button class="btn small" data-act="backup">Just back up</button><button class="btn small" data-act="import">Just import (pick one or more files)</button><button class="btn small" data-act="csv">Export as spreadsheet (CSV)</button></div>
+    const sy=S.sync;
+    f+=`<div class="set-sec">Automatic sync</div>`;
+    if(sy.on){
+      f+=`<div class="syncbox ${sy.err?'err':''}"><span id="syncStatus">${esc(syncStatus())}</span><button class="btn small" data-act="sync-auto">Sync now</button></div>
+        <p class="muted" style="margin-bottom:10px">Repository ${esc(sy.repo)}, token ending …${esc(sy.token.slice(-4))}. Syncs when the app opens, after each entry and every minute while open. A running timer appears on the other phone once it is stopped.</p>
+        <button class="btn small" style="width:100%" data-act="sync-off">Turn off or change token</button>`;
+    } else {
+      f+=`<p class="muted" style="margin-bottom:10px">Keeps both phones in step through your private GitHub repository. Logging still works offline.</p>
+        ${fld('Repository',`<input id="s-repo" value="${esc(sy.repo)}" placeholder="username/yupu-data" autocomplete="off" autocapitalize="off" spellcheck="false">`)}
+        ${fld('Access token for this phone',`<input id="s-token" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false">`)}
+        <button class="btn primary" style="width:100%" data-act="sync-on">Test and turn on</button>`;
+    }
+    f+=`<div class="set-sec">Backup files</div>
+      <p class="muted" style="margin-bottom:10px">${S.lastBackup?`Last backup ${dateStr(S.lastBackup)}.`:'No backup yet.'} Import also reads Nara Baby CSV exports.</p>
+      <div class="stack"><button class="btn small" data-act="backup">Back up to Files</button><button class="btn small" data-act="import">Import backup or Nara CSV</button><button class="btn small" data-act="csv">Export as spreadsheet (CSV)</button></div>
       <div class="set-sec">Storage</div><p class="muted">${n} entries, about ${kb} KB on this phone.</p>
-      <button class="link" style="margin:14px 0 0;color:var(--danger)" data-act="wipe">Delete all data on this phone</button>`;
+      <button class="link" style="margin:14px 0 0;color:var(--danger)" data-act="wipe">Delete all data on this phone</button>
+      <p class="muted" style="text-align:center;margin-top:22px;font-size:12px">Yupu baby v${APP_VERSION}, ${dateStr(fromInput(APP_DATE))}</p>`;
   }
+
   openSheet(f);
 }
 function saveSettings(){
   const st=S.settings,v=id=>{const el=$('#'+id);return el?el.value.trim():'';};
   const name=v('s-name'),dob=v('s-dob'),sex=v('s-sex');
   if(dob&&fromInput(dob)>Date.now()) return toast('Date of birth is in the future.');
-  if(name!==st.name||dob!==st.dob||sex!==st.sex){st.name=name;st.dob=dob;st.sex=sex;st.updatedAt=Date.now();}
+  if(name!==st.name||dob!==st.dob||sex!==st.sex){st.name=name;st.dob=dob;st.sex=sex;st.updatedAt=Date.now();markDirty('profile');}
   st.device=v('s-dev');st.theme=v('s-theme')||'auto';const sf=$('#s-syncfolder');if(sf)st.syncFolder=sf.value.trim();
   if($('#s-bkg')&&dob){const kg=num(v('s-bkg')),cm=num(v('s-bcm')),hd=num(v('s-bhead')),d={};
     if(kg>0.5&&kg<7)d.kg=kg;if(cm>30&&cm<65)d.cm=cm;if(hd>20&&hd<45)d.head=hd;
@@ -734,11 +763,11 @@ function mergeIn(obj){
   const isDupe=e=>String(e.id).startsWith('nara-')&&(near[e.type]||[]).some(s=>Math.abs(s-e.start)<=5*6e4);
   for(const e of obj.events){
     if(!e||!e.id||!e.type) continue;const cur=map.get(e.id);
-    if(!cur){if(!e.deleted&&isDupe(e)){dupes++;continue;}map.set(e.id,e);if(!e.deleted)added++;}
-    else if((e.updatedAt||0)>(cur.updatedAt||0)){map.set(e.id,e);updated++;}
+    if(!cur){if(!e.deleted&&isDupe(e)){dupes++;continue;}map.set(e.id,e);markDirty(monthKey(e.start));if(!e.deleted)added++;}
+    else if((e.updatedAt||0)>(cur.updatedAt||0)){map.set(e.id,e);markDirty(monthKey(e.start),monthKey(cur.start));updated++;}
   }
   S.events=[...map.values()];
-  if(obj.settings&&(obj.settings.updatedAt||0)>(S.settings.updatedAt||0)){const s=obj.settings;Object.assign(S.settings,{name:s.name||'',dob:s.dob||'',sex:s.sex||'',updatedAt:s.updatedAt});}
+  if(obj.settings&&(obj.settings.updatedAt||0)>(S.settings.updatedAt||0)){const s=obj.settings;Object.assign(S.settings,{name:s.name||'',dob:s.dob||'',sex:s.sex||'',updatedAt:s.updatedAt});markDirty('profile');}
   S.lastImport=Date.now();save();return {added,updated,dupes};
 }
 /* ---------- Nara Baby CSV import ---------- */
@@ -805,6 +834,126 @@ function toCSV(){
   return '\ufeff'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
 }
 
+/* ---------- automatic sync via a private GitHub repository ---------- */
+// Each month of entries is one file (yupu/2026-09.json) plus yupu/profile.json.
+// Pull: list the folder, fetch only files whose version changed, merge by id + updatedAt.
+// Push: rewrite only months changed on this phone, with the file's version as a lock; on a clash, re-pull and retry.
+const APP_VERSION='2.0.0',APP_DATE='2026-09-22',SYNC_DIR='yupu';
+const monthKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1);};
+let syncing=false,syncTimer=null,syncAgain=false;
+function markDirty(...keys){if(!S.sync)return;S.sync.dirty=S.sync.dirty||{};keys.forEach(k=>{if(k)S.sync.dirty[k]=1;});scheduleSync();}
+function scheduleSync(ms=15000){if(!S.sync||!S.sync.on)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),ms);}
+function normRepo(v){return String(v||'').trim().replace(/^https?:\/\/github\.com\//i,'').replace(/\.git$/,'').replace(/^\/+|\/+$/g,'');}
+async function gh(path,{method='GET',body,accept,repo,token}={}){
+  const s=S.sync;
+  return fetch('https://api.github.com/repos/'+(repo||s.repo)+path,{method,cache:'no-store',body,
+    headers:{'Authorization':'Bearer '+(token||s.token),'Accept':accept||'application/vnd.github+json',...(body?{'Content-Type':'application/json'}:{})}});
+}
+function b64enc(str){const b=new TextEncoder().encode(str);let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s);}
+function syncErrText(st){
+  if(st===401) return 'GitHub rejected the token. It may have expired: turn sync off and on with a new token.';
+  if(st===403) return 'The token is missing write access (Contents: Read and write), or GitHub is limiting requests.';
+  if(st===404) return 'Repository not found, or this token has no access to it.';
+  if(st==='conflict') return 'Both phones were syncing at once. Will retry shortly.';
+  if(st==='net') return 'Could not reach GitHub. Will retry when online.';
+  return 'GitHub error '+st+'. Will retry.';
+}
+function agoText(ts){const m=Math.round((Date.now()-ts)/6e4);return m<1?'just now':m<60?`${m} min ago`:dur(Date.now()-ts)+' ago';}
+function syncStatus(){const s=S.sync;if(!s.on)return 'Off';if(syncing)return 'Syncing…';if(s.err)return s.err;if(!navigator.onLine)return 'Offline. Will sync when online.';return s.last?`Synced ${agoText(s.last)}`:'Waiting for first sync';}
+function setSyncUI(){const el=$('#syncStatus');if(el){el.textContent=syncStatus();el.closest('.syncbox')?.classList.toggle('err',!!S.sync.err);}$('#gearBtn').classList.toggle('alert',!!(S.sync.on&&S.sync.err));}
+function monthFile(k){return JSON.stringify({app:'yupu',kind:'month',month:k,events:S.events.filter(e=>monthKey(e.start)===k).sort((a,b)=>a.start-b.start||(a.id<b.id?-1:1))});}
+function profileFile(){const st=S.settings;return JSON.stringify({app:'yupu',kind:'profile',settings:{name:st.name,dob:st.dob,sex:st.sex,updatedAt:st.updatedAt}});}
+function mergeRemote(obj){
+  if(!obj||obj.app!=='yupu')return false;let ch=false;
+  if(obj.kind==='profile'){const r=obj.settings||{};if((r.updatedAt||0)>(S.settings.updatedAt||0)){Object.assign(S.settings,{name:r.name||'',dob:r.dob||'',sex:r.sex||'',updatedAt:r.updatedAt});ch=true;}return ch;}
+  const idx=new Map(S.events.map((e,i)=>[e.id,i]));
+  for(const e of obj.events||[]){
+    if(!e||!e.id||!e.type)continue;const i=idx.get(e.id);
+    if(i==null){S.events.push(e);idx.set(e.id,S.events.length-1);ch=true;}
+    else if((e.updatedAt||0)>(S.events[i].updatedAt||0)){const old=S.events[i];S.events[i]=e;ch=true;if(monthKey(old.start)!==monthKey(e.start))S.sync.dirty[monthKey(old.start)]=1;}
+  }
+  return ch;
+}
+async function autoSync(){
+  const s=S.sync;if(!s.on||!s.repo||!s.token)return;
+  if(syncing){syncAgain=true;return;}
+  if(!navigator.onLine){setSyncUI();return;}
+  syncing=true;setSyncUI();let changed=false;
+  try{
+    for(let attempt=0;;attempt++){
+      const lr=await gh('/contents/'+SYNC_DIR);let list=[];
+      if(lr.status===404){const rr=await gh('');if(!rr.ok)throw rr.status;}
+      else if(!lr.ok) throw lr.status;
+      else list=(await lr.json()).filter(f=>f.type==='file'&&/\.json$/.test(f.name));
+      const remote={};list.forEach(f=>remote[f.name]=f.sha);
+      for(const f of list){
+        if(s.shas[f.name]===f.sha)continue;
+        const fr=await gh('/contents/'+SYNC_DIR+'/'+f.name,{accept:'application/vnd.github.raw+json'});
+        if(!fr.ok)throw fr.status;
+        try{if(mergeRemote(JSON.parse(await fr.text())))changed=true;}catch(e){}
+        s.shas[f.name]=f.sha;
+      }
+      save();
+      let clash=false;
+      for(const k of Object.keys(s.dirty||{})){
+        const name=k+'.json';
+        if(k!=='profile'&&!remote[name]&&!S.events.some(e=>monthKey(e.start)===k)){delete s.dirty[k];continue;}
+        const pr=await gh('/contents/'+SYNC_DIR+'/'+name,{method:'PUT',body:JSON.stringify({message:`${S.settings.device||'Yupu baby'}: ${k}`,content:b64enc(k==='profile'?profileFile():monthFile(k)),...(remote[name]?{sha:remote[name]}:{})})});
+        if(pr.status===409||pr.status===422){clash=true;break;}
+        if(!pr.ok)throw pr.status;
+        const j=await pr.json();s.shas[name]=remote[name]=j.content.sha;delete s.dirty[k];save();
+      }
+      if(!clash)break;
+      if(attempt>=3)throw 'conflict';
+      await new Promise(r=>setTimeout(r,800+Math.random()*1200));
+    }
+    s.last=Date.now();s.err='';
+  }catch(e){s.err=syncErrText(e instanceof TypeError?'net':e);}
+  finally{
+    syncing=false;save();
+    if(changed&&!sheetOpen())render();
+    setSyncUI();
+    if(syncAgain){syncAgain=false;scheduleSync(2000);}
+  }
+}
+async function syncTurnOn(){
+  const repo=normRepo($('#s-repo').value),token=$('#s-token').value.trim();
+  if(!/^[\w.-]+\/[\w.-]+$/.test(repo))return toast('Enter the repository as username/repository-name.');
+  if(!token)return toast('Paste the access token.');
+  toast('Checking connection…');
+  let r;try{r=await gh('',{repo,token});}catch(e){return toast('Could not reach GitHub. Check the internet connection.');}
+  if(r.status===401)return toast('GitHub rejected this token. Check it was copied completely.');
+  if(!r.ok)return toast('Repository not found, or the token has no access to it.');
+  const info=await r.json();
+  if(!info.private)return toast('That repository is public. Use a private one for your baby\'s data.');
+  Object.assign(S.sync,{repo,token,on:true,err:'',shas:{},dirty:{}});
+  const months=new Set(S.events.map(e=>monthKey(e.start)));months.forEach(k=>S.sync.dirty[k]=1);
+  if(S.settings.dob)S.sync.dirty.profile=1;
+  save();openSettings(false);toast('Sync is on. First sync running…');autoSync();
+}
+function syncTurnOff(){
+  if(!confirm('Turn off automatic sync on this phone? Your entries stay on the phone, and the token is removed from it.'))return;
+  Object.assign(S.sync,{on:false,token:'',err:'',shas:{},dirty:{}});save();setSyncUI();openSettings(false);toast('Sync turned off');
+}
+
+/* ---------- timer start adjustments ---------- */
+function setTimerStart(kind,ns){
+  const n=Date.now(),a=S.active[kind];if(!a)return false;
+  if(!(ns<=n))return toast('The start cannot be in the future.'),false;
+  if(n-ns>24*36e5)return toast('That is more than 24 hours ago.'),false;
+  if(kind==='nurse'){const s0=a.segs[0];const nf=s0.from+(ns-a.start);if(nf>=(s0.to??n))return toast('That is after the first side ended.'),false;s0.from=nf;}
+  const prev=a.start;a.start=ns;save();render();
+  toast(`Start moved to ${hm(ns)}`,()=>{setTimerStart(kind,prev);});
+  return true;
+}
+function openAdjust(kind){
+  const a=S.active[kind];if(!a)return;
+  openSheet(`<h2>${kind==='sleep'?'Fell asleep at':'Feed started at'}</h2>${fld('Start time',`<input id="adj-start" type="datetime-local" value="${toInput(a.start)}">`)}
+    <div class="presets ago">${[5,10,15,20,30,45].map(m=>`<button type="button" class="chip" data-act="ago" data-t="adj-start" data-m="${m}">${m} min ago</button>`).join('')}</div>
+    <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="adj-save" data-k="${kind}">Save</button></div>`);
+}
+const isVit=e=>e.type==='other'&&/vitamin/i.test((e.data.label||'')+' '+(e.data.note||''));
+
 /* ---------- theme, toast ---------- */
 const mq=matchMedia('(prefers-color-scheme: dark)');
 function applyTheme(){
@@ -849,6 +998,14 @@ document.addEventListener('click',ev=>{
     case 'step':{const el=$('#'+t.dataset.t);el.value=Math.max(0,(Math.round(num(el.value))||0)+(+t.dataset.d));break;}
     case 'setv': $('#'+t.dataset.t).value=t.dataset.v;break;
     case 'tog': t.classList.toggle('on');break;
+    case 'ago': $('#'+t.dataset.t).value=toInput(n-(+t.dataset.m)*6e4);break;
+    case 'adj': setTimerStart(t.dataset.k,S.active[t.dataset.k].start-(+t.dataset.m)*6e4);break;
+    case 'adj-open': openAdjust(t.dataset.k);break;
+    case 'adj-save':{const ns=fromInput($('#adj-start').value);if(isNaN(ns)){toast('Enter a valid time.');break;}if(setTimerStart(t.dataset.k,ns))closeSheet();break;}
+    case 'vit':{const e={id:uid(),type:'other',start:n,data:{label:'Vitamin D'}};upsert(e);render();toast('Vitamin D logged',()=>removeEv(e.id));break;}
+    case 'sync-on': syncTurnOn();break;
+    case 'sync-off': syncTurnOff();break;
+    case 'sync-auto': autoSync();break;
     case 'ed-save': saveEditor();break;
     case 'diaper-save': $('#f-kind').value=t.dataset.kind;saveEditor();break;
     case 'ed-del':{if(!ed||!confirm('Delete this entry?'))break;const old=removeEv(ed.id);closeSheet();render();toast('Entry deleted',()=>{if(old)upsert({...old});});break;}
@@ -886,7 +1043,10 @@ applyTheme();render();
 if(!S.settings.dob&&!S.events.length) openSettings(true);
 setInterval(tick,1000);
 setInterval(()=>{if(!sheetOpen()&&(tab==='today'||tab==='trends'))render();},60000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!sheetOpen())render();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(!sheetOpen())render();scheduleSync(300);}});
+window.addEventListener('online',()=>scheduleSync(300));
+setInterval(()=>{if(!document.hidden)autoSync();},60000);
+setSyncUI();scheduleSync(1200);
 window.addEventListener('storage',e=>{if(e.key===KEY){S=load();render();}});
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 try{if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
