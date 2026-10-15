@@ -1556,7 +1556,7 @@ function toCSV(){
 // Each month of entries is one file (yupu/2026-09.json) plus yupu/profile.json.
 // Pull: list the folder, fetch only files whose version changed, merge by id + updatedAt.
 // Push: rewrite only months changed on this phone, with the file's version as a lock; on a clash, re-pull and retry.
-const APP_VERSION='3.1.0',APP_DATE='2026-10-01',SYNC_DIR='yupu';
+const APP_VERSION='3.1.1',APP_DATE='2026-10-16',SYNC_DIR='yupu';
 const monthKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1);};
 let syncing=false,syncTimer=null,syncAgain=false;
 function markDirty(...keys){if(!S.sync)return;S.sync.dirty=S.sync.dirty||{};keys.forEach(k=>{if(k)S.sync.dirty[k]=1;});scheduleSync();}
