@@ -74,3 +74,6 @@ If a token expires: Settings → Turn off or change token → turn on again with
 - **Monthly restore point** in the private sync repo (`yupu/snapshots/`), Settings → Automatic sync → Restore points. Restoring brings back entries that are missing or deleted; it never overwrites newer edits.
 
 Update both phones to 3.1: a phone still on 3.0 can sync fine, but an edit made there won't carry the version history.
+
+## v3.1.2 (16 Oct 2026)
+New app icon in the shared high-tech style (Footprints). To see it on the home screen, remove the app and add it to the Home Screen again (back up or turn on sync first: removing the app deletes its data on that phone).
