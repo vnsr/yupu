@@ -5,7 +5,8 @@ All data stays in the app on each iPhone. Nothing is sent anywhere.
 ## Install (once, ~10 min)
 1. Create a free GitHub account, then a new **public** repository, e.g. `yupu`.
    (The code is public; your baby's data never leaves the phone.)
-2. Upload all files from this folder (index.html, sw.js, manifest.webmanifest, the 3 icons).
+2. Upload all files and folders from this folder: index.html, sw.js, manifest.webmanifest, the 3 icons, and the `css`, `js` and `fonts` folders.
+   (`tests`, `package.json` and `.github` are only for development and can be left out.)
 3. Repo → Settings → Pages → Source: "Deploy from a branch", branch `main`, folder `/ (root)` → Save.
 4. After ~1 minute open `https://<your-username>.github.io/yupu/` in **Safari** on the iPhone.
 5. Share button → **Add to Home Screen**. Always open Yupu baby from that icon.
@@ -29,8 +30,9 @@ iOS can clear web-app storage in rare cases. The app nudges you after 7 days wit
 keep the latest .json in iCloud Drive.
 
 ## Updating the app
-Replace index.html in the repo. The phone picks up the new version on the second launch
-while online (first launch downloads it, second one uses it).
+Replace the changed files in the repo (usually index.html, sw.js and the `css` and `js` folders).
+While the app is open and online it notices the new version and shows "A new version is ready – Reload".
+Otherwise the next launch uses it.
 
 ## Alternative host
 Netlify Drop (app.netlify.com/drop): drag this folder in, get an https link, same steps 4–7.
@@ -78,5 +80,24 @@ Update both phones to 3.1: a phone still on 3.0 can sync fine, but an edit made 
 ## v3.1.2 (16 Oct 2026)
 New app icon in the shared high-tech style (Footprints). To see it on the home screen, remove the app and add it to the Home Screen again (back up or turn on sync first: removing the app deletes its data on that phone).
 
+## Development
+The app has no build step: the files in this folder are what runs on the phone.
+- `index.html` – page skeleton
+- `css/app.css` – all styling (light, dark and the red night light)
+- `js/app.js` – the app; `js/i18n-de.js` – German interface; `js/who.js` – WHO growth tables
+- `fonts/outfit.woff2` – display font for numbers and headings (SIL Open Font License, see `fonts/OFL.txt`)
+
+Tests: `npm install`, then `npm test` (Playwright, Chromium at iPhone size). They also run on GitHub for every push.
+
 ## v3.2.0 (18 Oct 2026)
-New look, same app: a frosted header, a floating tab bar with an active highlight, raised cards, glowing sleep and feed arcs on the day ring, a live pulse on running timers, sheets that slide up smoothly, and a soft transition when switching tabs. Night light (red) stays flat and dim, with no glow or blur. Motion is off when iPhone's Reduce Motion is on. No data changes.
+- **New look:** frosted header, floating tab bar, raised cards, glowing sleep and feed arcs on the day ring, a live pulse on running timers, sheets that slide up smoothly, a soft transition between tabs, and a new display font for times and numbers. Night light (red) stays flat and dim. Motion is off when iPhone's Reduce Motion is on.
+- **Start earlier:** hold Left, Right or Sleep to start the timer 2–45 minutes back, or at a set time.
+- **Swipe to delete:** swipe an entry left in History or Latest; Undo brings it back (and Recently deleted still has it).
+- **Welcome in three steps** on a new phone: baby, this phone, how your data is kept.
+- **Text size** (Settings → Text size): Standard, Large, Larger. Larger puts the quick buttons in two columns.
+- **Tap a bar** in Trends to see that day's numbers.
+- **Update notice:** "A new version is ready – Reload" instead of waiting for the next launch.
+- **Smoother screen:** the screen is only redrawn when something on it changed, so scrolling and typing are never interrupted by the minute refresh.
+- **Accessibility:** the day ring and charts describe themselves to VoiceOver; timers are marked as timers; the current tab is announced.
+- Sync settings explain where the GitHub token is kept and how to remove it.
+- Code split into separate files with automated tests (see Development). No data changes.
