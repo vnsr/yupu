@@ -1,0 +1,13 @@
+{
+  "name": "yupu-baby",
+  "version": "3.2.0",
+  "private": true,
+  "description": "Private offline baby log (PWA). No build step: the files in this folder are the app.",
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}

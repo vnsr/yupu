@@ -1,8 +1,10 @@
 // Yupu baby offline cache: serves the app from the phone, refreshes it in the background when online.
-const CACHE = 'yupu-v3-1-2';
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const CACHE = 'yupu-v3-2-0';
+const FILES = ['./', './index.html', './css/app.css', './js/who.js', './js/i18n-de.js', './js/app.js', './fonts/outfit.woff2',
+  './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache:'reload' skips the browser's HTTP cache, so a new release never mixes in older files.
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
