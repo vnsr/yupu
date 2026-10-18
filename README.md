@@ -77,3 +77,6 @@ Update both phones to 3.1: a phone still on 3.0 can sync fine, but an edit made 
 
 ## v3.1.2 (16 Oct 2026)
 New app icon in the shared high-tech style (Footprints). To see it on the home screen, remove the app and add it to the Home Screen again (back up or turn on sync first: removing the app deletes its data on that phone).
+
+## v3.2.0 (18 Oct 2026)
+New look, same app: a frosted header, a floating tab bar with an active highlight, raised cards, glowing sleep and feed arcs on the day ring, a live pulse on running timers, sheets that slide up smoothly, and a soft transition when switching tabs. Night light (red) stays flat and dim, with no glow or blur. Motion is off when iPhone's Reduce Motion is on. No data changes.
