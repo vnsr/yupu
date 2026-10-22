@@ -396,25 +396,35 @@ function ring(ev,n){
   const inDay=e=>(e.end||e.start)>=ds&&e.start<de;
   const td=ev.filter(inDay),lf0=ev.find(isFeed);
   let s=`<svg class="ring" viewBox="0 0 320 320" role="img" aria-label="Today on a 24 hour clock: ${td.filter(e=>e.type==='sleep').length} sleeps, ${td.filter(isFeed).length} feeds, ${td.filter(e=>e.type==='diaper').length} diapers.${lf0?` Last feed at ${hm(lf0.start)}.`:''}">`;
-  s+=`<defs><filter id="rglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feComponentTransfer in="b" result="g"><feFuncA type="linear" slope=".55"/></feComponentTransfer><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  s+=`<defs><filter id="rglow" filterUnits="userSpaceOnUse" x="-20" y="-20" width="360" height="360"><feGaussianBlur stdDeviation="3" result="b"/><feComponentTransfer in="b" result="g"><feFuncA type="linear" slope=".55"/></feComponentTransfer><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
   s+=`<circle class="trk" cx="${C}" cy="${C}" r="128"/>`;
   if(n>ds) s+=`<path class="past" d="${arc(128,ds,n,0.1)}"/>`;
   for(let h=0;h<24;h++){if(h%6===0)continue;const a=h*15-90,[x0,y0]=pt(92,a),[x1,y1]=pt(96,a);s+=`<line class="tk" x1="${f(x0)}" y1="${f(y0)}" x2="${f(x1)}" y2="${f(y1)}"/>`;}
   [['00',-90],['06',0],['12',90],['18',180]].forEach(([l,a])=>{const [x,y]=pt(80,a);s+=`<text class="hl" x="${f(x)}" y="${f(y)}">${l}</text>`;});
   for(const e of ev){
     if(!inDay(e)) continue;
-    if(e.type==='sleep') s+=`<path class="sl" d="${arc(128,e.start,e.end,0.8)}"/>`;
+    if(e.type==='sleep') s+=`<path class="sl" d="${arc(128,e.start,e.end,2.5)}"/>`;
   }
-  if(S.active.sleep&&n>ds) s+=`<path class="sl" d="${arc(128,S.active.sleep.start,n,0.8)}"/>`;
-  for(const e of ev){
-    if(!inDay(e)) continue;
-    if(e.type==='nurse') s+=`<path class="fd" d="${arc(108,e.start,e.end,0.4)}"/>`;
-    else if(e.type==='bottle'){const [x,y]=pt(108,ang(e.start));s+=`<circle class="fdot" cx="${f(x)}" cy="${f(y)}" r="6"/>`;}
-    else if(e.type==='diaper'){const [x,y]=pt(151,ang(e.start));const k=e.data.kind;
-      s+=(k==='wet'||k==='dry')?`<circle class="dpw" cx="${f(x)}" cy="${f(y)}" r="4.5"/>`:`<circle class="dp" cx="${f(x)}" cy="${f(y)}" r="${k==='both'?6:5}"/>`;}
-    else if(e.type==='solids'){const [x,y]=pt(151,ang(e.start));s+=`<rect class="so" x="${f(x-4.5)}" y="${f(y-4.5)}" width="9" height="9" rx="1.5" transform="rotate(45 ${f(x)} ${f(y)})"/>`;}
-  }
-  if(S.active.nurse&&n>ds) s+=`<path class="fd" d="${arc(108,S.active.nurse.start,n,0.4)}"/>`;
+  if(S.active.sleep&&n>ds) s+=`<path class="sl" d="${arc(128,S.active.sleep.start,n,2.5)}"/>`;
+  // Point markers sit on two fixed lanes: feeds inside the ring, diapers and solids outside.
+  // Markers closer than their own width are fanned out around the cluster's middle so they never merge.
+  const lane=(r,gap,list)=>{
+    const m=list.map(([t,draw])=>({a:ang(Math.max(t,ds)),draw})).sort((x,y)=>x.a-y.a),min=gap/r*180/Math.PI;
+    for(let i=0;i<m.length;){
+      let j=i+1;while(j<m.length&&m[j].a-m[j-1].a<min)j++;
+      const mid=(m[i].a+m[j-1].a)/2;
+      for(let k=i;k<j;k++){if(j-i>1)m[k].a=mid+(k-i-(j-i-1)/2)*min;const [x,y]=pt(r,m[k].a);s+=m[k].draw(x,y);}
+      i=j;
+    }
+  };
+  const feeds=td.filter(isFeed).map(e=>[e.start,(x,y)=>`<circle class="fdot" cx="${f(x)}" cy="${f(y)}" r="5"/>`]);
+  if(S.active.nurse&&n>ds) feeds.push([S.active.nurse.start,(x,y)=>`<circle class="fdot" cx="${f(x)}" cy="${f(y)}" r="5"/>`]);
+  lane(108,12,feeds);
+  lane(151,12,td.filter(e=>e.type==='diaper'||e.type==='solids').map(e=>[e.start,(x,y)=>{
+    if(e.type==='solids') return `<path class="so" d="M${f(x)} ${f(y-6)}L${f(x+6)} ${f(y)}L${f(x)} ${f(y+6)}L${f(x-6)} ${f(y)}Z"/>`;
+    const k=e.data.kind;
+    return (k==='wet'||k==='dry')?`<circle class="dpw" cx="${f(x)}" cy="${f(y)}" r="4"/>`:`<circle class="dp" cx="${f(x)}" cy="${f(y)}" r="5"/>`;
+  }]));
   const an=ang(n),[hx0,hy0]=pt(112,an),[hx1,hy1]=pt(144,an);
   s+=`<line class="hand" x1="${f(hx0)}" y1="${f(hy0)}" x2="${f(hx1)}" y2="${f(hy1)}"/><circle class="handc" cx="${f(hx1)}" cy="${f(hy1)}" r="3.5"/>`;
   const lf=ev.find(isFeed);
@@ -1231,7 +1241,7 @@ function toCSV(){
 // Each month of entries is one file (yupu/2026-09.json) plus yupu/profile.json.
 // Pull: list the folder, fetch only files whose version changed, merge by id + updatedAt.
 // Push: rewrite only months changed on this phone, with the file's version as a lock; on a clash, re-pull and retry.
-const APP_VERSION='3.2.0',APP_DATE='2026-10-18',SYNC_DIR='yupu';
+const APP_VERSION='3.2.1',APP_DATE='2026-10-22',SYNC_DIR='yupu';
 const monthKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1);};
 let syncing=false,syncTimer=null,syncAgain=false;
 function markDirty(...keys){if(!S.sync)return;S.sync.dirty=S.sync.dirty||{};keys.forEach(k=>{if(k)S.sync.dirty[k]=1;});scheduleSync();}

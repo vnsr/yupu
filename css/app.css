@@ -71,9 +71,8 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;justify-c
 .ring .trk{fill:none;stroke:var(--surface2);stroke-width:22}
 .ring .past{fill:none;stroke:var(--line);stroke-width:22}
 .ring .sl{fill:none;stroke:var(--sleep);stroke-width:22}
-.ring .fd{fill:none;stroke:var(--feed);stroke-width:11;stroke-linecap:round}
 .ring .fdot{fill:var(--feed)}.ring .so{fill:var(--solids)}
-.ring .dp{fill:var(--diaper)}.ring .dpw{fill:var(--bg);stroke:var(--diaper);stroke-width:2.5}
+.ring .dp{fill:var(--diaper)}.ring .dpw{fill:var(--bg);stroke:var(--diaper);stroke-width:2}
 .ring .hand{stroke:var(--ink);stroke-width:2.5;stroke-linecap:round}.ring .handc{fill:var(--ink)}
 .ring .tk{stroke:var(--muted);stroke-width:1.2;opacity:.5}
 .ring .hl{fill:var(--muted);font-size:11px;text-anchor:middle;dominant-baseline:central}
@@ -220,10 +219,10 @@ h2.sec{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.0
 .dot{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 18%,transparent)}
 .ring{overflow:visible}
 .ring .trk{stroke:color-mix(in srgb,var(--surface2) 80%,transparent)}
-.ring .sl,.ring .fd,.ring .handc{filter:url(#rglow)}
+.ring .sl,.ring .handc{filter:url(#rglow)}
 .ring .handc{fill:var(--accent)}.ring .hand{stroke:var(--accent)}
 .ring .big{letter-spacing:-1px}
-[data-theme="red"] .ring .sl,[data-theme="red"] .ring .fd,[data-theme="red"] .ring .handc{filter:none}
+[data-theme="red"] .ring .sl,[data-theme="red"] .ring .handc{filter:none}
 .fld input,.fld textarea,.search input{transition:border-color .2s,box-shadow .2s}
 .fld input:focus,.fld textarea:focus,.search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 20%,transparent)}
 .sheet-wrap{background:rgba(8,12,22,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:opacity .3s var(--ease)}
