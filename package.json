@@ -1,6 +1,6 @@
 {
   "name": "yupu-baby",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "private": true,
   "description": "Private offline baby log (PWA). No build step: the files in this folder are the app.",
   "scripts": {

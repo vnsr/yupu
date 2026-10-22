@@ -1,5 +1,5 @@
 // Yupu baby offline cache: serves the app from the phone, refreshes it in the background when online.
-const CACHE = 'yupu-v3-2-0';
+const CACHE = 'yupu-v3-2-1';
 const FILES = ['./', './index.html', './css/app.css', './js/who.js', './js/i18n-de.js', './js/app.js', './fonts/outfit.woff2',
   './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
