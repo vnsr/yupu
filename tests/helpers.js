@@ -28,4 +28,11 @@ async function openApp(page, state) {
   return errors;
 }
 
-module.exports = { sampleState, openApp, H, DAY };
+// Switches tab and waits until the slide between screens has finished.
+async function tabTo(page, name) {
+  await page.click(`[data-tab="${name}"]`);
+  await expect(page.locator(`[data-tab="${name}"]`)).toHaveAttribute('aria-current', 'page');
+  await page.waitForFunction(() => !document.documentElement.dataset.vt);
+}
+
+module.exports = { sampleState, openApp, tabTo, H, DAY };

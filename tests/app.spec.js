@@ -1,19 +1,29 @@
 const { test, expect } = require('@playwright/test');
-const { sampleState, openApp, H } = require('./helpers');
+const { sampleState, openApp, tabTo, H } = require('./helpers');
 
-test('first run walks through three steps and saves the profile', async ({ page }) => {
+test('first run walks through four steps and saves the profile and what to track', async ({ page }) => {
   const errors = await openApp(page);
   await expect(page.locator('.ob-s[data-s="1"]')).toBeVisible();
   await page.fill('#s-name', 'Mila');
-  await page.fill('#s-dob', '2026-06-20');
+  // A young baby: Solids start switched off.
+  const dob = await page.evaluate(() => toDate(Date.now() - 60 * 864e5));
+  await page.fill('#s-dob', dob);
   await page.click('[data-group="s-sex"][data-val="f"]');
   await page.click('.ob-s[data-s="1"] [data-act="ob-step"]');
   await expect(page.locator('.ob-s[data-s="2"]')).toBeVisible();
   await page.fill('#s-dev', 'Mum');
   await page.click('.ob-s[data-s="2"] [data-n="3"]');
-  await page.click('.ob-s[data-s="3"] [data-act="set-save"]');
+  await expect(page.locator('.ob-s[data-s="3"]')).toBeVisible();
+  await expect(page.locator('.ob-s[data-s="3"] [data-feat="solids"]')).not.toBeChecked();
+  await page.click('[data-group="s-preset"][data-val="bottle"]');
+  await page.click('.ob-s[data-s="3"] [data-n="4"]');
+  await page.click('.ob-s[data-s="4"] [data-act="set-save"]');
   await expect(page.locator('#hdrName')).toHaveText('Mila');
-  expect(await page.evaluate(() => [S.settings.device, S.settings.sex, S.settings.dob])).toEqual(['Mum', 'f', '2026-06-20']);
+  expect(await page.evaluate(() => [S.settings.device, S.settings.sex, S.settings.dob])).toEqual(['Mum', 'f', dob]);
+  expect(await page.evaluate(() => { const f = S.settings.features; return [f.nurse, f.bottle, f.solids, f.sleep]; })).toEqual([false, true, false, true]);
+  await expect(page.locator('#main .act[data-act="nurse-side"]')).toHaveCount(0);
+  await expect(page.locator('#main .act[data-type="bottle"]')).toBeVisible();
+  await expect(page.locator('[data-tab="foods"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -62,7 +72,7 @@ test('holding Left starts nursing earlier on that side', async ({ page }) => {
 
 test('swiping a row left deletes it, Undo brings it back', async ({ page, context }) => {
   await openApp(page, sampleState());
-  await page.click('[data-tab="history"]');
+  await tabTo(page, 'history');
   const before = await page.evaluate(() => live().length);
   const r = await page.locator('#main .list .row').first().boundingBox();
   const cdp = await context.newCDPSession(page);
@@ -78,7 +88,7 @@ test('swiping a row left deletes it, Undo brings it back', async ({ page, contex
 
 test('a short vertical drag on a row does not delete it', async ({ page, context }) => {
   await openApp(page, sampleState());
-  await page.click('[data-tab="history"]');
+  await tabTo(page, 'history');
   const before = await page.evaluate(() => live().length);
   const r = await page.locator('#main .list .row').first().boundingBox();
   const cdp = await context.newCDPSession(page);

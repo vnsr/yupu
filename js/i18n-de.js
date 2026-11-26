@@ -183,3 +183,71 @@ Object.assign(DE,{
 'A new version of Yupu baby is ready.':'Eine neue Version von Yupu baby ist bereit.','Reload':'Neu laden'
 });
 DE_RX.push([/^(Sleep|Feed) started at (\d{1,2}:\d{2})$/,(m,a,t)=>`${a==='Sleep'?'Schlaf':'Mahlzeit'} gestartet um ${t}`]);
+// Strings added in 3.3: themes, what you track, medication, pumping, stool details.
+Object.assign(DE_TYPES,{medication:'Medikament',pumping:'Abpumpen'});
+Object.assign(DE,{
+'Look':'Aussehen','Light or dark':'Hell oder dunkel','Theme':'Farbthema','OLED black is always dark.':'OLED-Schwarz ist immer dunkel.',
+'Calm':'Ruhig','Blossom':'Blüte','Sage':'Salbei','Ocean':'Ozean','Latte':'Latte','Lavender':'Lavendel','OLED black':'OLED-Schwarz',
+'What you track':'Was du einträgst','Only for this phone. Switching something off hides it; nothing is deleted.':'Nur für dieses Handy. Ausschalten blendet nur aus, nichts wird gelöscht.',
+'Breastfeeding':'Stillen','Left and Right timers':'Timer für links und rechts','Pumping':'Abpumpen','Solids and foods':'Beikost und Lebensmittel','Foods tab and allergens':'Lebensmittel-Tab und Allergene',
+'Medication':'Medikamente','Daily medicine card':'Tägliche Medikamente','e.g. Vitamin D, once a day':'z. B. Vitamin D, einmal am Tag','Temperature':'Temperatur','fields and chart':'Felder und Diagramm',
+'WHO curves tab':'Tab mit WHO-Kurven','U-checks and vaccines':'U-Untersuchungen und Impfungen','Checks tab':'Tab „Vorsorge"','Insights':'Auswertungen','nap hint, week comparison, longest night stretch':'Schläfchen-Hinweis, Wochenvergleich, längste Schlafphase',
+'Stool details for dirty diapers':'Stuhl-Details bei vollen Windeln','Ask after Dirty':'Nach „Voll" fragen','When I tap':'Wenn ich tippe',
+'What do you want to track?':'Was möchtest du eintragen?','Pick a start, then switch things on or off. You can change this any time in Settings.':'Wähle einen Start und schalte dann ein oder aus. Das lässt sich jederzeit in den Einstellungen ändern.',
+'Breastfed':'Gestillt','Bottle-fed':'Flasche','Mixed':'Gemischt',
+'Pump':'Abpumpen','Medicine':'Medikament',
+'Started a moment ago? Hold Left or Right to set when.':'Gerade erst angefangen? Links oder Rechts gedrückt halten, um die Zeit zu wählen.',
+'Started a moment ago? Hold Sleep to set when.':'Gerade erst angefangen? Schlaf gedrückt halten, um die Zeit zu wählen.',
+'Everything is switched off. Choose what you track in Settings.':'Alles ist ausgeschaltet. Wähle in den Einstellungen, was du einträgst.',
+'Starting solids? Turn on Solids to log foods, first tries and allergens.':'Beikost-Start? Schalte Beikost ein, um Lebensmittel, erste Versuche und Allergene einzutragen.',
+'Turn on':'Einschalten','Not now':'Jetzt nicht','Solids turned on':'Beikost eingeschaltet',
+'asleep for':'schläft seit','awake for':'wach seit','Log below':'Unten eintragen','last dirty':'Letzte volle Windel',
+'pumped':'abgepumpt','Pumped per day':'Abgepumpt pro Tag','Stool':'Stuhl','no dirty diapers':'keine vollen Windeln','sleep blocks':'Schlafphasen',
+'Nothing to chart for what you track yet.':'Für das, was du einträgst, gibt es noch nichts anzuzeigen.',
+'Averages leave out today because it is still in progress.':'Durchschnitte ohne heute, weil der Tag noch läuft.',
+'Light bars are wet diapers, dark bars dirty.':'Helle Balken: nasse Windeln, dunkle: volle.','Dashed line marks 38.0°C.':'Gestrichelte Linie: 38,0 °C.',
+'Small marks along the bottom are medication doses.':'Kleine Markierungen unten sind Medikamentengaben.',
+'Stool to mention':'Stuhl zum Ansprechen',
+'Medicine':'Medikament','e.g. Paracetamol':'z. B. Paracetamol','Dose':'Dosis','How it was given':'Wie gegeben','Reason':'Grund',
+'Every day: show a Given / Not yet card on Today':'Täglich: Karte „Gegeben / Noch nicht" auf Heute zeigen',
+'By mouth':'Über den Mund','Suppository':'Zäpfchen','Eye, ear or nose drops':'Augen-, Ohren- oder Nasentropfen','On the skin':'Auf die Haut','Inhaled':'Inhaliert',
+'Fever':'Fieber','Pain':'Schmerzen','Teething':'Zahnen','Cold':'Erkältung','Tummy':'Bauchweh','Fluoride':'Fluorid','Simethicone':'Simeticon',
+'drops':'Tropfen','tablet':'Tablette','puff':'Hub',
+'Left (ml)':'Links (ml)','Right (ml)':'Rechts (ml)','Total (ml)':'Gesamt (ml)','Duration (min)':'Dauer (Min.)',
+'Nappy rash':'Wunder Po','+ Stool details':'+ Stuhl-Details','Colour':'Farbe','Consistency':'Konsistenz','Also noticed':'Außerdem bemerkt','Save without details':'Ohne Details speichern',
+'Yellow':'Gelb','Mustard':'Senfgelb','Orange':'Orange','Green':'Grün','Dark green':'Dunkelgrün','Brown':'Braun','Black':'Schwarz','Red':'Rot','Pale, white or grey':'Hell, weiß oder grau','Pale / grey':'Hell / grau',
+'Watery':'Wässrig','Loose':'Dünn','Seedy, grainy':'Körnig','Soft, pasty':'Weich, breiig','Formed':'Geformt','Hard, pellets':'Hart, Kügelchen',
+'Small':'Wenig','Medium':'Mittel','Blowout':'Ausgelaufen','Mucus':'Schleim','Blood streaks':'Blutfäden','Undigested food':'Unverdautes Essen',
+'Enter the medicine, for example Paracetamol.':'Medikament eintragen, zum Beispiel Paracetamol.','Enter an amount in ml or a duration.':'Menge in ml oder eine Dauer eintragen.',
+'e.g. Bath, Tummy time':'z. B. Baden, Bauchlage'
+});
+DE_RX.push(
+ [/^New (medication|pumping)$/,(m,a)=>a==='medication'?'Neues Medikament':'Neues Abpumpen'],
+ [/^Edit (medication|pumping)$/,(m,a)=>`${DE_TYPES[a]} bearbeiten`],
+ [/^ago · (\d+) doses in 24 h$/,'her · $1 Gaben in 24 h'],
+ [/^pumped, (\d+) (session|sessions)$/,(m,a)=>`abgepumpt, ${a}×`],
+ [/^(\d+) ml pumped$/,'$1 ml abgepumpt'],
+ [/^(\d+) dirty, (\d+) with details$/,'$1 volle, $2 mit Details'],
+ [/^(\d+) marked to mention$/,'$1 zum Ansprechen markiert'],
+ [/^(\d+) ml a day, (\d+) (session|sessions) in total$/,(m,a,b)=>`${a} ml pro Tag, ${b}× insgesamt`]
+);
+DE_PH.unshift(
+ ['nappy rash','wunder Po'],['dark green','dunkelgrün'],['blood streaks','Blutfäden'],['undigested food','unverdautes Essen'],['stool mostly','Stuhl meist'],
+ ['eye, ear or nose drops','Augen-, Ohren- oder Nasentropfen'],['by mouth','über den Mund'],['on the skin','auf die Haut'],['suppository','Zäpfchen'],['inhaled','inhaliert'],
+ ['ml pumped','ml abgepumpt'],['Colours:','Farben:'],['Consistency:','Konsistenz:'],['given on','gegeben an'],['doses of','Gaben à'],['doses','Gaben'],['days','Tagen'],
+ ['yellow','gelb'],['mustard','senfgelb'],['orange','orange'],['green','grün'],['brown','braun'],['black','schwarz'],['red','rot'],['pale','hell'],
+ ['watery','wässrig'],['loose','dünn'],['seedy','körnig'],['soft','weich'],['formed','geformt'],['hard','hart'],
+ ['small','wenig'],['medium','mittel'],['large','viel'],['blowout','ausgelaufen'],['mucus','Schleim'],
+ ['fever','Fieber'],['pain','Schmerzen'],['teething','Zahnen'],['cold','Erkältung'],['tummy','Bauchweh'],
+ ['drops','Tropfen'],['tablet','Tablette'],['puff','Hub'],['Fluoride','Fluorid'],['Simethicone','Simeticon'],['Pumping','Abpumpen']
+);
+// Strings added in 3.4: diaper tray, time ruler, gestures, button order.
+Object.assign(DE,{
+'More…':'Mehr…','More diaper options':'Weitere Windel-Optionen','When':'Wann','1 minute earlier':'1 Minute früher','1 minute later':'1 Minute später',
+'Pick another day or time':'Anderen Tag oder Uhrzeit wählen','Order of quick buttons':'Reihenfolge der Schnelltasten','Left and Right':'Links und Rechts','Diaper saved':'Windel gespeichert'
+});
+DE_RX.push(
+ [/^(.+) logged again at (.+)$/,(m,a,b)=>`${tr(a)} erneut eingetragen um ${b}`],
+ [/^(\d+h(?: \d+m)?) ago$/,'vor $1'],
+ [/^Move (.+) (up|down)$/,(m,a,b)=>`${tr(a)} nach ${b==='up'?'oben':'unten'}`]
+);
