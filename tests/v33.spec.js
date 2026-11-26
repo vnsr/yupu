@@ -1,6 +1,6 @@
 // 3.3: themes, what you track, medication and pumping as their own entries, stool details.
 const { test, expect } = require('@playwright/test');
-const { sampleState, openApp, H, DAY } = require('./helpers');
+const { sampleState, openApp, tabTo, H, DAY } = require('./helpers');
 
 test('old Other entries for medication and pumping move to their own types, and restore undoes it', async ({ page }) => {
   const t = Date.now() - 3 * H;
@@ -19,7 +19,7 @@ test('old Other entries for medication and pumping move to their own types, and 
   // Pumping entries existed, so Pumping is switched on.
   expect(await page.evaluate(() => S.settings.features.pump)).toBe(true);
   // Restoring the earlier version brings back the Other entry and it stays that way.
-  await page.click('[data-tab="history"]');
+  await tabTo(page, 'history');
   await page.click('.row[data-id="m1"]');
   await page.click('[data-act="hist"]');
   await page.click('[data-act="hist-restore"]');
@@ -62,7 +62,7 @@ test('medication sheet: name chip, dose, Log again repeats the dose, History fil
   await page.click('[data-act="med-name"][data-v="Ibuprofen"]');
   await expect(page.locator('#f-dose')).toHaveValue('2.5');
   await page.click('[data-act="close"]');
-  await page.click('[data-tab="history"]');
+  await tabTo(page, 'history');
   await page.click('[data-act="hist-filter"][data-v="med"]');
   await expect(page.locator('#hist-list .row')).toHaveCount(2);
   expect(errors).toEqual([]);
@@ -70,11 +70,13 @@ test('medication sheet: name chip, dose, Log again repeats the dose, History fil
 
 test('dirty diaper opens stool details; wet saves in one tap; pale stool is flagged', async ({ page }) => {
   const errors = await openApp(page, sampleState());
+  // Diaper opens Wet / Dirty / Both on Today; Wet saves straight away.
   await page.click('#main .act[data-type="diaper"]');
-  await page.click('[data-act="diaper-kind"][data-kind="wet"]');
+  await page.click('#main .tray [data-kind="wet"]');
   await expect(page.locator('#toast')).toContainText('Diaper saved');
+  await expect(page.locator('#main .tray')).toHaveCount(0);
   await page.click('#main .act[data-type="diaper"]');
-  await page.click('[data-act="diaper-kind"][data-kind="dirty"]');
+  await page.click('#main .tray [data-kind="dirty"]');
   await expect(page.locator('#f-stool')).toHaveClass(/open/);
   await page.click('[data-group="f-scol"][data-val="pale"]');
   await page.click('[data-group="f-scons"][data-val="seedy"]');
@@ -94,7 +96,7 @@ test('stool details off: Dirty saves at once; editing keeps details already ther
   const t = Date.now() - H;
   await openApp(page, sampleState({ settings: { ...sampleState().settings, stool: 'off' }, events: [{ id: 'dd', type: 'diaper', start: t, data: { kind: 'both', color: 'mustard', cons: 'soft' } }] }));
   await page.click('#main .act[data-type="diaper"]');
-  await page.click('[data-act="diaper-kind"][data-kind="dirty"]');
+  await page.click('#main .tray [data-kind="dirty"]');
   await expect(page.locator('#toast')).toContainText('Diaper saved');
   expect(await page.evaluate(() => live()[0].data)).toEqual({ kind: 'dirty' });
   await page.click('#main .row[data-id="dd"]');
@@ -115,13 +117,13 @@ test('switching features off hides them everywhere but keeps the entries', async
   await expect(page.locator('#main .act[data-act="nurse-side"]')).toHaveCount(0);
   await expect(page.locator('#main .since .c-sleep')).toHaveCount(0);
   await expect(page.locator('[data-tab="growth"]')).toHaveCount(0);
-  await page.click('[data-tab="trends"]');
+  await tabTo(page, 'trends');
   await expect(page.locator('#main')).not.toContainText('Sleep per day');
-  await page.click('[data-tab="history"]');
+  await tabTo(page, 'history');
   await expect(page.locator('[data-act="hist-filter"][data-v="sleep"]')).toHaveCount(0);
   await expect(page.locator('#hist-list .row.c-sleep').first()).toBeVisible();
   // Quick buttons fill the row: Bottle, Diaper, Solids, Medicine → 2 × 2.
-  await page.click('[data-tab="today"]');
+  await tabTo(page, 'today');
   const spans = await page.locator('#main .acts .act').evaluateAll(b => b.map(x => x.style.gridColumn));
   expect(spans).toEqual(['span 3', 'span 3', 'span 3', 'span 3']);
   expect(errors).toEqual([]);
@@ -166,7 +168,7 @@ test('pumping: total follows left and right, shows in totals and trends', async 
   await page.click('[data-act="ed-save"]');
   expect(await page.evaluate(() => live()[0].data)).toEqual({ l: 70, r: 55, ml: 125, min: 18 });
   await expect(page.locator('#main .totals')).toContainText('125 ml');
-  await page.click('[data-tab="trends"]');
+  await tabTo(page, 'trends');
   await expect(page.locator('#main')).toContainText('Pumped per day');
   expect(errors).toEqual([]);
 });
@@ -213,7 +215,7 @@ test('German interface translates the 3.3 screens', async ({ page }) => {
   const errors = await openApp(page, s);
   await expect(page.locator('#main .act[data-type="med"]')).toContainText('Medikament');
   await page.click('#main .act[data-type="diaper"]');
-  await page.click('[data-act="diaper-kind"][data-kind="dirty"]');
+  await page.click('#main .tray [data-kind="dirty"]');
   await expect(page.locator('#f-stool')).toContainText('Konsistenz');
   await expect(page.locator('#f-stool')).toContainText('Senfgelb');
   await page.click('[data-group="f-scol"][data-val="mustard"]');

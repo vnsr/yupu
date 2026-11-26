@@ -241,3 +241,13 @@ DE_PH.unshift(
  ['fever','Fieber'],['pain','Schmerzen'],['teething','Zahnen'],['cold','Erkältung'],['tummy','Bauchweh'],
  ['drops','Tropfen'],['tablet','Tablette'],['puff','Hub'],['Fluoride','Fluorid'],['Simethicone','Simeticon'],['Pumping','Abpumpen']
 );
+// Strings added in 3.4: diaper tray, time ruler, gestures, button order.
+Object.assign(DE,{
+'More…':'Mehr…','More diaper options':'Weitere Windel-Optionen','When':'Wann','1 minute earlier':'1 Minute früher','1 minute later':'1 Minute später',
+'Pick another day or time':'Anderen Tag oder Uhrzeit wählen','Order of quick buttons':'Reihenfolge der Schnelltasten','Left and Right':'Links und Rechts','Diaper saved':'Windel gespeichert'
+});
+DE_RX.push(
+ [/^(.+) logged again at (.+)$/,(m,a,b)=>`${tr(a)} erneut eingetragen um ${b}`],
+ [/^(\d+h(?: \d+m)?) ago$/,'vor $1'],
+ [/^Move (.+) (up|down)$/,(m,a,b)=>`${tr(a)} nach ${b==='up'?'oben':'unten'}`]
+);

@@ -50,9 +50,10 @@ const I = {
 };
 
 /* ---------- state ---------- */
+const ORDER0=['nurse','bottle','sleep','diaper','solids','pump','med'];
 const defFeatures=()=>({nurse:true,bottle:true,pump:false,sleep:true,diaper:true,solids:true,med:true,daily:true,temp:true,growth:true,checks:true,insights:true});
-function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',palette:'calm',textSize:'m',night:false,nightAuto:false,nightFrom:'21:00',nightTo:'07:00',nightSkipUntil:0,lang:'en',syncFolder:'',remind:false,features:defFeatures(),stool:'auto',daily:['Vitamin D'],updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0,activeUpd:{nurse:0,sleep:0},sync:{repo:'',token:'',on:false,shas:{},dirty:{},last:0,err:''}};}
-function hydrate(d){const b=blank(),ds=d.settings||{};return {...b,...d,settings:{...b.settings,...ds,features:{...b.settings.features,...(ds.features||{})},daily:Array.isArray(ds.daily)?ds.daily:b.settings.daily},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},sync:{...b.sync,...(d.sync||{})},activeUpd:{...b.activeUpd,...(d.activeUpd||{})},events:Array.isArray(d.events)?d.events:[]};}
+function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',palette:'calm',textSize:'m',night:false,nightAuto:false,nightFrom:'21:00',nightTo:'07:00',nightSkipUntil:0,lang:'en',syncFolder:'',remind:false,features:defFeatures(),stool:'auto',daily:['Vitamin D'],order:ORDER0.slice(),updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0,activeUpd:{nurse:0,sleep:0},sync:{repo:'',token:'',on:false,shas:{},dirty:{},last:0,err:''}};}
+function hydrate(d){const b=blank(),ds=d.settings||{};return {...b,...d,settings:{...b.settings,...ds,features:{...b.settings.features,...(ds.features||{})},daily:Array.isArray(ds.daily)?ds.daily:b.settings.daily,order:[...new Set([...(Array.isArray(ds.order)?ds.order:[]).filter(k=>ORDER0.includes(k)),...ORDER0])]},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},sync:{...b.sync,...(d.sync||{})},activeUpd:{...b.activeUpd,...(d.activeUpd||{})},events:Array.isArray(d.events)?d.events:[]};}
 const feat=k=>!S||!S.settings||!S.settings.features||S.settings.features[k]!==false;
 const feedsOn=()=>feat('nurse')||feat('bottle');
 function loadLS(key=KEY){try{const raw=localStorage.getItem(key);if(raw)return hydrate(JSON.parse(raw));}catch(e){}return null;}
@@ -325,36 +326,118 @@ const TABS=[['today','Today',I.today],['history','History',I.list],['trends','Tr
 
 // Only touches the DOM when the markup changed, so scroll, focus and running
 // animations survive the minute refresh and actions that change nothing on screen.
+// A new screen (another tab, another range) is drawn fresh; an update to the same screen
+// is patched in place by morph(), so only what changed moves.
 const painted={tabs:'',main:''};
-function paint(el,key,html){const k=S.settings.lang+'|'+html;if(painted[key]===k)return;painted[key]=k;el.innerHTML=html;translateDom(el);}
+const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+function paint(el,key,html,fresh){
+  const k=S.settings.lang+'|'+html;if(painted[key]===k)return false;painted[key]=k;
+  if(fresh||!el.firstChild){el.innerHTML=html;translateDom(el);return true;}
+  const t=document.createElement('template');t.innerHTML=html;translateDom(t.content);morphKids(el,t.content);return true;
+}
+/* ---------- morph: patch the live DOM to match new markup (3.4) ----------
+   Children are matched by data-key where present (list rows, Today's blocks, ring markers),
+   otherwise by position and tag. Unchanged nodes stay, so their animations, scroll and focus
+   survive. A new row in a list slides in; a row that's gone folds away. Elements that tick()
+   keeps up to date (data-since, data-tick) keep their text; classes starting with fx- are
+   transient effects and survive a patch. */
+const keyOf=n=>n.nodeType===1?n.getAttribute('data-key'):null;
+const ghost=n=>n.nodeType===1&&(n.classList.contains('fx-out')||n.hasAttribute('data-fx'));
+function syncAttrs(a,b){
+  for(const {name} of [...a.attributes])if(!b.hasAttribute(name)&&name!=='data-rv'&&!(name==='style'&&a.classList.contains('tab-pill')))a.removeAttribute(name);
+  for(const {name,value} of [...b.attributes]){
+    if(name==='class'){const fx=[...a.classList].filter(c=>c.startsWith('fx-')),v=fx.length?`${value} ${fx.join(' ')}`:value;if(a.getAttribute('class')!==v)a.setAttribute('class',v);continue;}
+    if(a.getAttribute(name)!==value)a.setAttribute(name,value);
+  }
+  if(a.tagName==='INPUT'&&a!==document.activeElement&&a.type!=='checkbox'){const v=b.getAttribute('value')||'';if(a.value!==v)a.value=v;}
+}
+function morph(a,b){
+  syncAttrs(a,b);
+  if(b.hasAttribute('data-since')||b.hasAttribute('data-tick'))return;
+  if(a.classList.contains('roll')&&b.children.length===0){roll(a,b.textContent);return;}
+  if(a.tagName==='TEXTAREA')return;
+  morphKids(a,b);
+}
+function morphKids(a,b){
+  const old=[...a.childNodes].filter(n=>!ghost(n)),nw=[...b.childNodes],byKey=new Map(),used=new Set(),out=[],fresh=[];
+  old.forEach(n=>{const k=keyOf(n);if(k)byKey.set(k,n);});
+  const loose=old.filter(n=>!keyOf(n));let u=0;
+  for(const n of nw){
+    const k=keyOf(n);let m=null;
+    if(k){m=byKey.get(k)||null;if(m&&(m.tagName!==n.tagName||used.has(m)))m=null;}
+    else{while(u<loose.length&&used.has(loose[u]))u++;const c=loose[u];
+      if(c&&c.nodeType===n.nodeType&&(c.nodeType!==1||c.tagName===n.tagName)){m=c;u++;}}
+    if(m){used.add(m);if(m.nodeType===1)morph(m,n);else if(m.nodeValue!==n.nodeValue)m.nodeValue=n.nodeValue;out.push(m);}
+    else{out.push(n);if(k)fresh.push(n);}
+  }
+  const list=a.tagName==='UL'&&a.classList.contains('list')&&a.isConnected&&!reduced();
+  old.forEach(n=>{if(used.has(n))return;if(list&&n.tagName==='LI'&&keyOf(n))foldOut(n);else n.remove();});
+  let cur=a.firstChild;
+  for(const n of out){while(cur&&ghost(cur)&&cur!==n)cur=cur.nextSibling;if(cur===n)cur=cur.nextSibling;else a.insertBefore(n,cur);}
+  if(list&&fresh.length&&fresh.length<=3)fresh.forEach(n=>fx(n,'fx-new',900));
+  // A whole new list (the first entry of a new day) slides its rows in too.
+  if(a.isConnected&&!reduced())out.forEach(n=>{if(n.nodeType===1&&n.tagName==='UL'&&n.classList.contains('list')&&!old.includes(n)){const lis=[...n.children];if(lis.length<=3)lis.forEach(li=>fx(li,'fx-new',900));}});
+}
+// Adds a transient effect class and takes it off again.
+function fx(el,cls,ms){if(!el||reduced())return;el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),ms);}
+// A removed row keeps its place while it collapses, then goes.
+function foldOut(li){
+  li.style.height=li.offsetHeight+'px';li.classList.add('fx-out');void li.offsetHeight;li.style.height='0px';
+  setTimeout(()=>li.remove(),360);
+}
+/* Rolling digits: each character that changes slides up into place. */
+function roll(el,text){
+  text=String(text);const prev=el.dataset.rv;el.dataset.rv=text;
+  const chars=[...text],spans=[...el.children].filter(x=>x.classList.contains('rc'));
+  if(prev===text&&spans.length===chars.length)return;
+  const anim=prev!=null&&spans.length===chars.length&&!reduced()&&document.documentElement.dataset.theme!=='red';
+  if(!anim){el.innerHTML=chars.map(c=>`<span class="rc" data-c="${esc(c)}">${esc(c)}</span>`).join('');return;}
+  chars.forEach((c,i)=>{const sp=spans[i],was=sp.dataset.c;if(was===c)return;sp.dataset.c=c;
+    sp.innerHTML=`<span class="ri">${esc(c)}</span><span class="ro" aria-hidden="true">${esc(was)}</span>`;
+    clearTimeout(sp._t);sp._t=setTimeout(()=>{sp.textContent=sp.dataset.c;},420);});
+}
 const TAB_FEAT={growth:'growth',checks:'checks',foods:'solids'};
 const tabsOn=()=>TABS.filter(([k])=>!TAB_FEAT[k]||feat(TAB_FEAT[k]));
+let shownView='';
 function render(){
   if(!tabsOn().some(([k])=>k===tab))tab='today';
-  paint($('#tabs'),'tabs',tabsOn().map(([k,l,svg])=>`<button class="tab ${k===tab?'on':''}" data-act="tab" data-tab="${k}" aria-label="${l}"${k===tab?' aria-current="page"':''}>${svg}<span>${l}</span></button>`).join(''));
+  paint($('#tabs'),'tabs','<i class="tab-pill" aria-hidden="true"></i>'+tabsOn().map(([k,l,svg])=>`<button class="tab ${k===tab?'on':''}" data-act="tab" data-tab="${k}" data-key="${k}" aria-label="${l}"${k===tab?' aria-current="page"':''}>${svg}<span>${l}</span></button>`).join(''));
+  pill();
   $('#hdrName').textContent=S.settings.name||'Yupu baby';
   $('#hdrSub').textContent=ageText()||'Baby log';
-  paint($('#main'),'main',({today:vToday,history:vHistory,trends:vTrends,growth:vGrowth,checks:vChecks,foods:vFoods})[tab]());
+  // Another tab or another range is a new screen: drawn fresh so its entrance animations run.
+  const view=tab+'|'+(tab==='trends'?trendRange:tab==='growth'?growthMetric:'')+'|'+S.settings.lang,fresh=view!==shownView;shownView=view;
+  paint($('#main'),'main',({today:vToday,history:vHistory,trends:vTrends,growth:vGrowth,checks:vChecks,foods:vFoods})[tab](),fresh);
   document.documentElement.lang=S.settings.lang==='de'?'de':'en';
   translateDom(document.querySelector('header.top'));
   tick();
 }
+// The tab highlight is one pill that slides to the current tab.
+function pill(){
+  const p=$('#tabs .tab-pill'),b=$('#tabs .tab.on');if(!p||!b)return;
+  const first=!p.style.width;if(first)p.style.transition='none';
+  p.style.width=b.offsetWidth+'px';p.style.transform=`translateX(${b.offsetLeft}px)`;
+  if(first){void p.offsetWidth;p.style.transition='';}
+}
+window.addEventListener('resize',()=>pill());
+// Timers and "since" counters: HTML ones marked .roll roll their digits, the rest (the ring's SVG text) just change.
+const setTxt=(el,v)=>{if(el.classList&&el.classList.contains('roll'))roll(el,v);else if(el.textContent!==v)el.textContent=v;};
 function tick(){
   const n=Date.now();
-  document.querySelectorAll('[data-since]').forEach(el=>{el.textContent=dur(n-(+el.dataset.since),el.dataset.fmt==='s');});
+  document.querySelectorAll('[data-since]').forEach(el=>setTxt(el,dur(n-(+el.dataset.since),el.dataset.fmt==='s')));
   const a=S.active.nurse;
   if(a){
     const l=sideMs(a,'l',n),r=sideMs(a,'r',n);
-    document.querySelectorAll('[data-tick="nt"]').forEach(el=>el.textContent=dur(l+r,true));
-    document.querySelectorAll('[data-tick="nl"]').forEach(el=>el.textContent=dur(l,true));
-    document.querySelectorAll('[data-tick="nr"]').forEach(el=>el.textContent=dur(r,true));
+    document.querySelectorAll('[data-tick="nt"]').forEach(el=>setTxt(el,dur(l+r,true)));
+    document.querySelectorAll('[data-tick="nl"]').forEach(el=>setTxt(el,dur(l,true)));
+    document.querySelectorAll('[data-tick="nr"]').forEach(el=>setTxt(el,dur(r,true)));
   }
 }
 function row(e){
   const d=describe(e),me=S.settings.device||'';
   const by=e.by&&e.by!==me?`<span class="by">${esc(e.by)}</span>`:'';
   const sw=d.sw?`<i class="sw" style="--sw:${d.sw}" aria-hidden="true"></i>`:'';
-  return `<li><button class="row c-${COLOR[e.type]||'other'}" data-act="edit" data-id="${e.id}"><time>${e.type==='growth'?'':hm(e.start)}</time><i class="dot"></i><span class="rt"><b>${esc(d.title)}${by}</b><small class="${d.flag?'flag':''}">${sw}${esc(d.detail)}</small></span><span class="rd">${esc(d.right)}</span></button></li>`;
+  return `<li data-key="${e.id}"><button class="row c-${COLOR[e.type]||'other'}" data-act="edit" data-id="${e.id}"><time>${e.type==='growth'?'':hm(e.start)}</time><i class="dot"></i><span class="rt"><b>${esc(d.title)}${by}</b><small class="${d.flag?'flag':''}">${sw}${esc(d.detail)}</small></span><span class="rd">${esc(d.right)}</span></button></li>`;
 }
 
 /* Forgotten-timer guard: a sleep over 14 h or a feed over 90 min asks whether it is still going. */
@@ -365,7 +448,8 @@ function guard(kind,x,n){
 }
 function openEndAt(kind){
   const a=S.active[kind];if(!a)return;
-  openSheet(`<h2>${kind==='sleep'?'Woke up at':'Feed ended at'}</h2><p class="muted" style="margin:-4px 2px 12px">Started ${whenStr(a.start)}.</p>${fld('End time',`<input id="end-at" type="datetime-local" value="${toInput(Date.now())}">`)}
+  const back=Math.min(1440,Math.max(30,Math.ceil((Date.now()-a.start)/6e4)));
+  openSheet(`<h2>${kind==='sleep'?'Woke up at':'Feed ended at'}</h2><p class="muted" style="margin:-4px 2px 12px">Started ${whenStr(a.start)}.</p>${fldD('End time',ruler('end-at',Date.now(),back))}
     <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="end-save" data-k="${kind}">Save</button></div>`);
 }
 function endTimerAt(kind,end){
@@ -387,16 +471,16 @@ function medsCard(ev,n){
   ev.forEach(e=>{if(n-e.start>48*36e5||e.start>n+6e4)return;const name=medName(e);if(!name||(feat('daily')&&isDailyName(name)))return;const k=name.toLowerCase();
     if(!m.has(k))m.set(k,{name,e,c:0});if(n-e.start<=24*36e5)m.get(k).c++;});
   if(!m.size)return '';
-  return `<div class="meds">${[...m.values()].map(({name,e,c})=>{const ds=e.type==='med'?doseText(e.data):'';
-    return `<div class="med c-med"><button data-act="edit" data-id="${e.id}"><b>${esc(name)}${ds?` <small>${esc(ds)}</small>`:''}</b><span>at ${hm(e.start)}, <span data-since="${e.start}"></span> ago${c>1?` · ${c} doses in 24 h`:''}</span></button><button class="btn small" data-act="med-again" data-id="${e.id}">Log again</button></div>`;}).join('')}</div>`;
+  return `<div class="meds" data-key="meds">${[...m.values()].map(({name,e,c})=>{const ds=e.type==='med'?doseText(e.data):'';
+    return `<div class="med c-med" data-key="med-${esc(name.toLowerCase())}"><button data-act="edit" data-id="${e.id}"><b>${esc(name)}${ds?` <small>${esc(ds)}</small>`:''}</b><span>at ${hm(e.start)}, <span data-since="${e.start}"></span> ago${c>1?` · ${c} doses in 24 h`:''}</span></button><button class="btn small" data-act="med-again" data-id="${e.id}">Log again</button></div>`;}).join('')}</div>`;
 }
 // One card per daily medicine: Given today / Give. Vitamin D is the default.
 function dailyCards(ev,n){
   if(!feat('daily'))return '';const t0=dayStart(n);
   return dailyNames().map(name=>{
     const g=ev.find(e=>e.start>=t0&&e.start<=n+6e4&&sameMed(e,name));
-    return g?`<button class="vit done" data-act="edit" data-id="${g.id}">${I.pill}<span><b>${esc(name)}</b><small>Given today at ${hm(g.start)}</small></span><i>Done ✓</i></button>`
-      :`<button class="vit" data-act="daily" data-name="${esc(name)}">${I.pill}<span><b>${esc(name)}</b><small>Not given yet today</small></span><i>Give</i></button>`;
+    return g?`<button class="vit done" data-key="daily-${esc(name)}" data-act="edit" data-id="${g.id}">${I.pill}<span><b>${esc(name)}</b><small>Given today at ${hm(g.start)}</small></span><i>Done ✓</i></button>`
+      :`<button class="vit" data-key="daily-${esc(name)}" data-act="daily" data-name="${esc(name)}">${I.pill}<span><b>${esc(name)}</b><small>Not given yet today</small></span><i>Give</i></button>`;
   }).join('');
 }
 // A new medication entry repeating the last dose of that medicine (name, dose, unit, form).
@@ -443,8 +527,29 @@ function otherPhone(x){return x&&x.by&&x.by!==(S.settings.device||'')?`<span cla
 // A short last row stretches to fill the width, a single leftover button becomes a wide bar.
 function actGrid(B){
   const n=B.length,cols=n<=2?n:n===4||S.settings.textSize==='xl'?2:3,rest=n%cols,span=6/cols;
-  return `<div class="acts">${B.map((b,i)=>{const last=rest&&i>=n-rest,sp=last?6/rest:span;
+  return `<div class="acts" data-key="acts">${B.map((b,i)=>{const last=rest&&i>=n-rest,sp=last?6/rest:span;
     return b.replace('<button class="act',`<button style="grid-column:span ${sp}" class="act${sp===6&&n>1?' wide':''}`);}).join('')}</div>`;
+}
+/* Diaper without a sheet (3.4): Diaper opens Wet / Dirty / Both right under the buttons.
+   Wet saves at once. Dirty and Both open the stool panel when Stool details is "ask after
+   Dirty", otherwise they save at once too. More… opens the full diaper sheet. */
+let tray=null;
+function trayHtml(){
+  if(tray!=='diaper'||!feat('diaper'))return '';
+  return `<div class="tray c-diaper" data-key="tray" role="group" aria-label="Diaper"><button data-act="dq" data-kind="wet">Wet</button><button data-act="dq" data-kind="dirty">Dirty</button><button data-act="dq" data-kind="both">Both</button><button class="more" data-act="new" data-type="diaper" aria-label="More diaper options">More…</button></div>`;
+}
+// Logged: the button pops and a check mark draws in over it.
+function pop(el){
+  if(!el)return;fx(el,'fx-pop',700);if(reduced())return;
+  const c=document.createElement('span');c.className='chk';c.setAttribute('data-fx','');c.setAttribute('aria-hidden','true');
+  c.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg>';el.appendChild(c);setTimeout(()=>c.remove(),900);
+}
+function quickDiaper(kind){
+  tray=null;
+  if(kind!=='wet'&&(S.settings.stool||'auto')==='auto'){render();openEditor('diaper',null,{kind});return;}
+  const e={id:uid(),type:'diaper',start:Date.now(),data:{kind}};upsert(e);render();haptic('Light');
+  pop($('#main .act[data-act="tray"]'));
+  toast('Diaper saved',()=>removeEv(e.id));
 }
 // Solids start switched off for a young baby; around 5 months, one card offers to turn them on.
 function solidsNudge(){
@@ -459,16 +564,16 @@ function vToday(){
   else if(!S.sync.on&&S.events.length>20 && n-(S.lastBackup||0)>7*864e5) h+=`<div class="nudge"><span>${S.lastBackup?`Last backup ${daysBetween(S.lastBackup,n)} days ago.`:'No backup yet.'} iPhone can clear web app data, so keep a copy.</span><button class="btn small" data-act="backup">Back up</button></div>`;
   if(a.nurse){
     const cur=curSide(a.nurse),last=lastSide(a.nurse),other=last==='l'?'r':'l';
-    h+=`<section class="timer c-feed ${cur?'running':''}"><div class="timer-top"><b>${cur?'Nursing':'Nursing, paused'}${otherPhone(a.nurse)}</b><button data-act="adj-open" data-k="nurse">started ${hm(a.nurse.start)}</button></div>
-      <div class="timer-big" role="timer" data-tick="nt">00:00</div>
-      <div class="sides"><div class="side ${cur==='l'?'on':''}"><b>Left</b><span data-tick="nl">00:00</span></div><div class="side ${cur==='r'?'on':''}"><b>Right</b><span data-tick="nr">00:00</span></div></div>
+    h+=`<section class="timer c-feed ${cur?'running':''}" data-key="t-nurse"><div class="timer-top"><b>${cur?'Nursing':'Nursing, paused'}${otherPhone(a.nurse)}</b><button data-act="adj-open" data-k="nurse">started ${hm(a.nurse.start)}</button></div>
+      <div class="timer-big roll" role="timer" data-tick="nt">00:00</div>
+      <div class="sides"><div class="side ${cur==='l'?'on':''}"><b>Left</b><span class="roll" data-tick="nl">00:00</span></div><div class="side ${cur==='r'?'on':''}"><b>Right</b><span class="roll" data-tick="nr">00:00</span></div></div>
       ${guard('nurse',a.nurse,n)}<div class="row-btns"><button class="btn" data-act="nurse-side" data-side="${other}">Switch to ${other==='l'?'left':'right'}</button><button class="btn" data-act="nurse-pause">${cur?'Pause':'Resume'}</button><button class="btn primary" data-act="nurse-done">Done</button></div>
       <div class="adj"><span>Started earlier?</span><button data-act="adj" data-k="nurse" data-m="5">−5 min</button><button data-act="adj" data-k="nurse" data-m="10">−10</button><button data-act="adj" data-k="nurse" data-m="15">−15</button><button data-act="adj-open" data-k="nurse">Set time</button></div>
       <button class="link" data-act="nurse-discard">Discard this feed</button></section>`;
   }
   if(a.sleep){
-    h+=`<section class="timer c-sleep running"><div class="timer-top"><b>Asleep${otherPhone(a.sleep)}</b><button data-act="adj-open" data-k="sleep">since ${hm(a.sleep.start)}</button></div>
-      <div class="timer-big" role="timer" data-since="${a.sleep.start}" data-fmt="s"></div>
+    h+=`<section class="timer c-sleep running" data-key="t-sleep"><div class="timer-top"><b>Asleep${otherPhone(a.sleep)}</b><button data-act="adj-open" data-k="sleep">since ${hm(a.sleep.start)}</button></div>
+      <div class="timer-big roll" role="timer" data-since="${a.sleep.start}" data-fmt="s"></div>
       ${guard('sleep',a.sleep,n)}<div class="row-btns"><button class="btn primary" data-act="sleep-stop">Woke up</button></div>
       <div class="adj"><span>Started earlier?</span><button data-act="adj" data-k="sleep" data-m="5">−5 min</button><button data-act="adj" data-k="sleep" data-m="10">−10</button><button data-act="adj" data-k="sleep" data-m="15">−15</button><button data-act="adj-open" data-k="sleep">Set time</button></div>
       <button class="link" data-act="sleep-discard">Discard this sleep</button></section>`;
@@ -476,28 +581,29 @@ function vToday(){
   const night=nightActive(),lastN=ev.find(e=>e.type==='nurse'),ls2=lastN&&lastN.data.last;
   const liveSide=a.nurse&&curSide(a.nurse);
   const sideBtn=(s,label)=>`<button class="act c-feed ${liveSide===s?'live':''}" data-act="nurse-side" data-side="${s}">${I.drop}<span>${label}</span>${!a.nurse&&ls2===s?'<small>last</small>':''}</button>`;
-  const B=[];
-  if(feat('nurse'))B.push(sideBtn('l','Left'),sideBtn('r','Right'));
-  if(feat('bottle'))B.push(`<button class="act c-feed" data-act="new" data-type="bottle">${I.bottle}<span>Bottle</span></button>`);
-  if(feat('sleep')||a.sleep)B.push(a.sleep?`<button class="act c-sleep live" data-act="sleep-stop">${I.sun}<span>Woke up</span></button>`:`<button class="act c-sleep" data-act="sleep-start">${I.moon}<span>Sleep</span></button>`);
-  if(feat('diaper'))B.push(`<button class="act c-diaper" data-act="new" data-type="diaper">${I.diaper}<span>Diaper</span></button>`);
-  if(feat('solids'))B.push(`<button class="act c-solids" data-act="new" data-type="solids">${I.spoon}<span>Solids</span></button>`);
-  if(feat('pump'))B.push(`<button class="act c-pump" data-act="new" data-type="pump">${I.pump}<span>Pump</span></button>`);
-  if(feat('med'))B.push(`<button class="act c-med" data-act="new" data-type="med">${I.pill}<span>Medicine</span></button>`);
+  // Quick buttons in the order chosen in Settings (What you track → Order of quick buttons).
+  const QB={nurse:()=>[sideBtn('l','Left'),sideBtn('r','Right')],
+    bottle:()=>[`<button class="act c-feed" data-act="new" data-type="bottle">${I.bottle}<span>Bottle</span></button>`],
+    sleep:()=>[a.sleep?`<button class="act c-sleep live" data-act="sleep-stop">${I.sun}<span>Woke up</span></button>`:`<button class="act c-sleep" data-act="sleep-start">${I.moon}<span>Sleep</span></button>`],
+    diaper:()=>[`<button class="act c-diaper${tray==='diaper'?' open':''}" data-act="tray" data-type="diaper" aria-expanded="${tray==='diaper'}">${I.diaper}<span>Diaper</span></button>`],
+    solids:()=>[`<button class="act c-solids" data-act="new" data-type="solids">${I.spoon}<span>Solids</span></button>`],
+    pump:()=>[`<button class="act c-pump" data-act="new" data-type="pump">${I.pump}<span>Pump</span></button>`],
+    med:()=>[`<button class="act c-med" data-act="new" data-type="med">${I.pill}<span>Medicine</span></button>`]};
+  const B=S.settings.order.filter(k=>feat(k)||(k==='sleep'&&a.sleep)).flatMap(k=>QB[k]());
   const holdWhat=feat('nurse')&&feat('sleep')?'Left, Right or Sleep':feat('nurse')?'Left or Right':'Sleep';
   const holdTip=!S.prefs.held&&!a.nurse&&!a.sleep&&(feat('nurse')||feat('sleep'))?`<p class="tip">Started a moment ago? Hold ${holdWhat} to set when.</p>`:'';
-  const acts=B.length?actGrid(B)+holdTip:`<div class="nudge"><span>Everything is switched off. Choose what you track in Settings.</span><button class="btn small" data-act="settings">Settings</button></div>`;
+  const acts=B.length?actGrid(B)+trayHtml()+holdTip:`<div class="nudge"><span>Everything is switched off. Choose what you track in Settings.</span><button class="btn small" data-act="settings">Settings</button></div>`;
   if(night) h+=acts;
-  h+=`<div class="ring-wrap">${ring(ev,n)}</div>`;
+  h+=`<div class="ring-wrap" data-key="ring">${ring(ev,n)}</div>`;
   const lg=[];if(feat('sleep'))lg.push('<span class="c-sleep"><i></i>Sleep</span>');if(feedsOn())lg.push('<span class="c-feed"><i></i>Feeds</span>');if(feat('diaper'))lg.push('<span class="c-diaper"><i></i>Diapers</span>');if(feat('solids'))lg.push('<span class="c-solids"><i></i>Solids</span>');
-  if(lg.length)h+=`<div class="legend">${lg.join('')}</div>`;
+  if(lg.length)h+=`<div class="legend" data-key="legend">${lg.join('')}</div>`;
   const ls=ev.find(e=>e.type==='sleep'),ld=ev.find(e=>e.type==='diaper'),lds=ev.find(e=>e.type==='diaper'&&hasStool(e.data));
   const nh=feat('insights')&&!a.sleep&&ls?napHint(ev,n):null,nhH=nh&&new Date(n).getHours()>=7&&new Date(n).getHours()<19?`<small class="hint">usually naps after about ${dur(nh.median)}, around ${hm(ls.end+nh.median)}</small>`:'';
-  const sleepBox=a.sleep?`<b data-since="${a.sleep.start}"></b><span>asleep since ${hm(a.sleep.start)}</span>`:ls?`<b data-since="${ls.end}"></b><span>awake since ${hm(ls.end)}</span>${nhH}`:`<b>–</b><span>no sleep logged</span>`;
+  const sleepBox=a.sleep?`<b class="roll" data-since="${a.sleep.start}"></b><span>asleep since ${hm(a.sleep.start)}</span>`:ls?`<b class="roll" data-since="${ls.end}"></b><span>awake since ${hm(ls.end)}</span>${nhH}`:`<b>–</b><span>no sleep logged</span>`;
   const dirtyH=lds&&lds!==ld?`<small class="hint">last dirty <span data-since="${lds.start}"></span> ago</small>`:'';
-  const dBox=ld?`<b data-since="${ld.start}"></b><span>since diaper, ${hm(ld.start)}</span>${dirtyH}`:`<b>–</b><span>no diaper logged</span>`;
+  const dBox=ld?`<b class="roll" data-since="${ld.start}"></b><span>since diaper, ${hm(ld.start)}</span>${dirtyH}`:`<b>–</b><span>no diaper logged</span>`;
   const bx=[];if(feat('sleep')||a.sleep)bx.push(`<div class="c-sleep">${sleepBox}</div>`);if(feat('diaper'))bx.push(`<div class="c-diaper">${dBox}</div>`);
-  if(bx.length)h+=`<div class="since${bx.length===1?' one':''}">${bx.join('')}</div>`;
+  if(bx.length)h+=`<div class="since${bx.length===1?' one':''}" data-key="since">${bx.join('')}</div>`;
   if(!night) h+=acts;
   h+=dailyCards(ev,n);
   if(feat('med'))h+=medsCard(ev,n);
@@ -512,10 +618,10 @@ function vToday(){
   if(feat('diaper'))T.push(`<b>${st.wet}</b><span>wet diapers</span>`,`<b>${st.dirty}</b><span>dirty diapers${st.solids&&feat('solids')?`, ${st.solids} solids`:''}</span>`);
   else if(feat('solids'))T.push(`<b>${st.solids}</b><span>solids</span>`);
   if(feat('pump'))T.push(`<b>${st.pumpMl} ml</b><span>pumped${st.pumps?`, ${st.pumps} ${st.pumps===1?'session':'sessions'}`:''}</span>`);
-  if(T.length)h+=`<h2 class="sec">Today so far</h2><div class="totals">${T.map((x,i)=>`<div${i===T.length-1&&T.length%2?' class="wide"':''}>${x}</div>`).join('')}
+  if(T.length)h+=`<h2 class="sec" data-key="h-tot">Today so far</h2><div class="totals" data-key="tot">${T.map((x,i)=>`<div${i===T.length-1&&T.length%2?' class="wide"':''}>${x.replace('<b>','<b class="roll">')}</div>`).join('')}
     ${ns?`<div class="wide"><b>${dur(ns.dur)}</b><span>longest stretch last night, ${hm(ns.start)}–${ns.ongoing?'now':hm(ns.end)}</span></div>`:''}</div>`;
   const recent=ev.slice(0,5);
-  if(recent.length) h+=`<h2 class="sec">Latest</h2><ul class="list">${recent.map(row).join('')}</ul>`;
+  if(recent.length) h+=`<h2 class="sec" data-key="h-lat">Latest</h2><ul class="list" data-key="latest">${recent.map(row).join('')}</ul>`;
   return h;
 }
 
@@ -540,9 +646,10 @@ function ring(ev,n){
   [['00',-90],['06',0],['12',90],['18',180]].forEach(([l,a])=>{const [x,y]=pt(80,a);s+=`<text class="hl" x="${f(x)}" y="${f(y)}">${l}</text>`;});
   for(const e of ev){
     if(!inDay(e)) continue;
-    if(e.type==='sleep') s+=`<path class="sl" d="${arc(128,e.start,e.end,2.5)}"/>`;
+    if(e.type==='sleep') s+=`<path class="sl" data-key="sl-${e.id}" data-act="edit" data-id="${e.id}" pathLength="1" d="${arc(128,e.start,e.end,2.5)}"/>`;
   }
-  if(S.active.sleep&&n>ds) s+=`<path class="sl" d="${arc(128,S.active.sleep.start,n,2.5)}"/>`;
+  // Arcs draw themselves in when Today opens; tapping one opens that sleep (the running one: its start time).
+  if(S.active.sleep&&n>ds) s+=`<path class="sl" data-key="sl-live" data-act="adj-open" data-k="sleep" pathLength="1" d="${arc(128,S.active.sleep.start,n,2.5)}"/>`;
   // Point markers sit on two fixed lanes: feeds inside the ring, diapers and solids outside.
   // Markers closer than their own width are fanned out around the cluster's middle so they never merge.
   const lane=(r,gap,list)=>{
@@ -554,16 +661,18 @@ function ring(ev,n){
       i=j;
     }
   };
-  const feeds=td.filter(isFeed).map(e=>[e.start,(x,y)=>`<circle class="fdot" cx="${f(x)}" cy="${f(y)}" r="5"/>`]);
-  if(S.active.nurse&&n>ds) feeds.push([S.active.nurse.start,(x,y)=>`<circle class="fdot" cx="${f(x)}" cy="${f(y)}" r="5"/>`]);
+  // Each marker pops in, and has a larger invisible circle so it's easy to tap.
+  const mk=(e,x,y,shape)=>`<g class="mk" data-key="m-${e?e.id:'live'}" ${e?`data-act="edit" data-id="${e.id}"`:'data-act="adj-open" data-k="nurse"'}>${shape}<circle class="rhit" cx="${f(x)}" cy="${f(y)}" r="12"/></g>`;
+  const feeds=td.filter(isFeed).map(e=>[e.start,(x,y)=>mk(e,x,y,`<circle class="fdot" cx="${f(x)}" cy="${f(y)}" r="5"/>`)]);
+  if(S.active.nurse&&n>ds) feeds.push([S.active.nurse.start,(x,y)=>mk(null,x,y,`<circle class="fdot" cx="${f(x)}" cy="${f(y)}" r="5"/>`)]);
   lane(108,12,feeds);
   lane(151,12,td.filter(e=>e.type==='diaper'||e.type==='solids').map(e=>[e.start,(x,y)=>{
-    if(e.type==='solids') return `<path class="so" d="M${f(x)} ${f(y-6)}L${f(x+6)} ${f(y)}L${f(x)} ${f(y+6)}L${f(x-6)} ${f(y)}Z"/>`;
+    if(e.type==='solids') return mk(e,x,y,`<path class="so" d="M${f(x)} ${f(y-6)}L${f(x+6)} ${f(y)}L${f(x)} ${f(y+6)}L${f(x-6)} ${f(y)}Z"/>`);
     const k=e.data.kind;
-    return (k==='wet'||k==='dry')?`<circle class="dpw" cx="${f(x)}" cy="${f(y)}" r="4"/>`:`<circle class="dp" cx="${f(x)}" cy="${f(y)}" r="5"/>`;
+    return mk(e,x,y,(k==='wet'||k==='dry')?`<circle class="dpw" cx="${f(x)}" cy="${f(y)}" r="4"/>`:`<circle class="dp" cx="${f(x)}" cy="${f(y)}" r="5"/>`);
   }]));
-  const an=ang(n),[hx0,hy0]=pt(112,an),[hx1,hy1]=pt(144,an);
-  s+=`<line class="hand" x1="${f(hx0)}" y1="${f(hy0)}" x2="${f(hx1)}" y2="${f(hy1)}"/><circle class="handc" cx="${f(hx1)}" cy="${f(hy1)}" r="3.5"/>`;
+  // The hand is drawn pointing at midnight and turned to now, so it sweeps smoothly when it moves.
+  s+=`<g class="handg" style="transform:rotate(${((n-ds)/span*360).toFixed(2)}deg)"><line class="hand" x1="${C}" y1="${C-112}" x2="${C}" y2="${C-144}"/><circle class="handc" cx="${C}" cy="${C-144}" r="3.5"/></g>`;
   // The middle shows time since the last feed; with feeds switched off it shows sleep instead.
   const lf=feedsOn()||S.active.nurse?ev.find(isFeed):null,ls=!feedsOn()&&feat('sleep')?ev.find(e=>e.type==='sleep'):null;
   let top='',big='',bot='',bigAttr='';
@@ -613,7 +722,7 @@ function histList(){
   for(const [k,list] of groups){
     const st=dayStats(k,addDays(k,1),all,Date.now());
     const sum=[];if(feedsOn())sum.push(`${st.feeds} feeds`);if(feat('sleep'))sum.push(`${dur(st.sleep)} sleep`);if(feat('diaper'))sum.push(`${st.wet} wet`,`${st.dirty} dirty`);if(feat('pump')&&st.pumpMl)sum.push(`${st.pumpMl} ml pumped`);
-    h+=`<h3 class="day"><span>${dayLabel(k)}</span><small>${q?'':sum.join(', ')}</small></h3><ul class="list">${list.map(row).join('')}</ul>`;
+    h+=`<h3 class="day" data-key="d-${k}"><span>${dayLabel(k)}</span><small>${q?'':sum.join(', ')}</small></h3><ul class="list" data-key="l-${k}">${list.map(row).join('')}</ul>`;
   }
   if(!q&&ev.some(e=>e.start<addDays(dayStart(Date.now()),-(histDays-1)))) h+=`<div style="text-align:center;margin-top:16px"><button class="btn small" data-act="hist-more">Show 7 more days</button></div>`;
   return h;
@@ -627,7 +736,7 @@ function bars(series,labels,fmtTop,tips){
   let s=`<svg viewBox="0 0 ${W} ${H}"><line class="gl" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>`;
   series.forEach((se,k)=>se.vals.forEach((v,i)=>{
     const h=(v/max)*(H-T-B),x=L+i*cw+(cw-bw*series.length)/2+k*bw,y=H-B-h;
-    if(v>0) s+=`<rect class="${se.cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1,bw-1.5).toFixed(1)}" height="${h.toFixed(1)}" rx="3"/>`;
+    if(v>0) s+=`<rect class="${se.cls} bar" style="--i:${i}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1,bw-1.5).toFixed(1)}" height="${h.toFixed(1)}" rx="3"/>`;
     if(fmtTop&&n<=7&&v>0&&series.length===1) s+=`<text class="ax" x="${(x+bw/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle">${fmtTop(v)}</text>`;
   }));
   labels.forEach((lb,i)=>{if(lb)s+=`<text class="ax" x="${(L+i*cw+cw/2).toFixed(1)}" y="${H-4}" text-anchor="middle">${lb}</text>`;});
@@ -643,7 +752,7 @@ function pattern(days,ev,now){
     s+=`<rect class="f-row" x="${L}" y="${y}" width="${W-L-Rr}" height="${rh}" rx="3" opacity=".6"/>`;
     const blocks=ev.filter(e=>e.type==='sleep'&&e.end>d.ds&&e.start<d.de).map(e=>[e.start,e.end]);
     if(S.active.sleep&&now>d.ds&&S.active.sleep.start<d.de) blocks.push([S.active.sleep.start,now]);
-    for(const [a,b] of blocks){const x0=X(Math.max(a,d.ds)),x1=X(Math.min(b,d.de));s+=`<rect class="f-sleep" x="${x0.toFixed(1)}" y="${y}" width="${Math.max(1,x1-x0).toFixed(1)}" height="${rh}" rx="2"/>`;}
+    for(const [a,b] of blocks){const x0=X(Math.max(a,d.ds)),x1=X(Math.min(b,d.de));s+=`<rect class="f-sleep pblk" style="--i:${i}" x="${x0.toFixed(1)}" y="${y}" width="${Math.max(1,x1-x0).toFixed(1)}" height="${rh}" rx="2"/>`;}
     for(const e of ev){if(isFeed(e)&&e.start>=d.ds&&e.start<d.de){s+=`<rect class="f-feed" x="${(X(e.start)-1).toFixed(1)}" y="${y}" width="2.5" height="${rh}"/>`;}}
     const showLbl=n<=14||i%7===0;
     if(showLbl) s+=`<text class="ax" x="${L-6}" y="${y+rh/2+3.5}" text-anchor="end">${i===0?'Today':new Date(d.ds).toLocaleDateString(LOC(),n<=7?{weekday:'short'}:{day:'numeric',month:'numeric'})}</text>`;
@@ -657,7 +766,7 @@ function stoolChart(days,ev){
   let s=`<svg viewBox="0 0 ${W} ${H}"><line class="gl" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>`;
   per.forEach((list,i)=>{const cx=L+i*cw+cw/2;
     list.slice(0,mx).forEach((e,k)=>{const c=STOOL[e.data.color],cy=H-B-r-2-k*gap;
-      s+=c?`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" fill="${c[1]}" class="sdot${stoolFlag(e)?' hot':''}"/>`:`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" class="f-diaper sdot"/>`;});
+      s+=c?`<circle style="--i:${i}" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" fill="${c[1]}" class="sdot${stoolFlag(e)?' hot':''}"/>`:`<circle style="--i:${i}" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" class="f-diaper sdot"/>`;});
     if(list.length>mx)s+=`<text class="ax" x="${f(cx)}" y="10" text-anchor="middle">+${list.length-mx}</text>`;});
   return {svg:s,per};
 }
@@ -671,7 +780,7 @@ function tempChart(days,pts,meds=[]){
   if(38>=y0&&38<=y1) s+=`<line class="tref" x1="${l}" x2="${W-r}" y1="${f(Y(38))}" y2="${f(Y(38))}"/>`;
   const step2=Math.max(1,Math.ceil(days.length/6));
   days.forEach((d,i)=>{if(i%step2===0||i===days.length-1) s+=`<text class="ax" x="${f(X(d.ds))}" y="${H-4}" text-anchor="middle">${i===days.length-1?'Today':new Date(d.ds).toLocaleDateString(LOC(),{day:'numeric',month:'numeric'})}</text>`;});
-  if(pts.length>1) s+=`<path class="tline" d="${pts.map((p,i)=>`${i?'L':'M'}${f(X(p.t))} ${f(Y(p.v))}`).join('')}"/>`;
+  if(pts.length>1) s+=`<path class="tline" pathLength="1" d="${pts.map((p,i)=>`${i?'L':'M'}${f(X(p.t))} ${f(Y(p.v))}`).join('')}"/>`;
   pts.forEach(p=>{s+=`<circle class="tpt" cx="${f(X(p.t))}" cy="${f(Y(p.v))}" r="4"/>`;});
   // Medication doses sit as small marks along the bottom, so fever and doses share one timeline.
   meds.forEach(m=>{s+=`<rect class="mmk" x="${f(X(m.t)-3)}" y="${H-b-8}" width="6" height="6" rx="3"><title>${esc(m.name)} ${hm(m.t)}</title></rect>`;});
@@ -1131,28 +1240,49 @@ function openHealth(){
   openSheet(`<h2>Check data</h2>${list.length?`<p class="muted" style="margin-bottom:10px">${list.length} ${list.length===1?'thing':'things'} to look at${fixable.length?`, ${fixable.length} with a suggested fix`:''}. Deleted entries can be restored from Recently deleted.</p>${fixable.length?`<button class="btn primary" style="width:100%;margin-bottom:10px" data-act="health-fixall">Apply ${fixable.length} suggested ${fixable.length===1?'fix':'fixes'}</button>`:''}<ul class="list">${rows}</ul>`:'<p class="muted">No duplicates, overlaps or odd durations found.</p>'}<div class="foot"><button class="btn" data-act="close">Close</button></div>`);
 }
 /* ---------- sheets ---------- */
-function openSheet(html){$('#sheet').style.transform='';$('#sheet').innerHTML='<div class="grab"></div>'+html;translateDom($('#sheet'));$('#sheetWrap').classList.add('open');document.body.style.overflow='hidden';$('#sheet').scrollTop=0;}
-function closeSheet(){$('#sheetWrap').classList.remove('open');document.body.style.overflow='';ed=null;}
+/* Sheets grow out of what was tapped (3.4): the button, the row, the gear. A sheet that
+   replaces another one just changes its content. */
+let lastTap=null;
+function openSheet(html){
+  const sh=$('#sheet'),wrap=$('#sheetWrap'),was=wrap.classList.contains('open');
+  const o=lastTap&&Date.now()-lastTap.at<500&&lastTap.el.isConnected&&!sh.contains(lastTap.el)?lastTap.el.getBoundingClientRect():null;lastTap=null;
+  sh.style.transform='';sh.innerHTML='<div class="grab"></div>'+html;translateDom(sh);initRulers(sh);
+  document.body.style.overflow='hidden';sh.scrollTop=0;
+  if(was||!o||reduced()||!sh.animate){wrap.classList.add('open');if(was&&!reduced()&&sh.animate)sh.animate([{opacity:.4},{opacity:1}],{duration:220,easing:'ease-out'});return;}
+  sh.style.transition='none';wrap.classList.add('open');
+  const F=sh.getBoundingClientRect(),sc=Math.max(.18,Math.min(1,o.width/F.width));
+  const dx=(o.left+o.width/2)-(F.left+F.width/2),dy=(o.top+o.height/2)-(F.top+F.height/2);
+  const an=sh.animate([{transform:`translate(${dx}px,${dy}px) scale(${sc})`,opacity:.15,borderRadius:'22px'},{transform:'none',opacity:1,borderRadius:'28px 28px 0 0'}],{duration:440,easing:'cubic-bezier(.2,.9,.25,1.04)'});
+  const done=()=>{sh.style.transition='';};an.onfinish=done;an.oncancel=done;
+}
+function closeSheet(){$('#sheetWrap').classList.remove('open');$('#sheetWrap').style.opacity='';document.body.style.overflow='';ed=null;}
 // Swipe down to close: the drag starts on the handle, or anywhere once the sheet is scrolled
-// to the top. Typing in fields and sideways chip rows are left alone.
+// to the top. Typing in fields, sideways chip rows and the time ruler are left alone. The sheet
+// follows the finger, the backdrop fades with it, and a flick closes it at the flick's speed;
+// short of that it springs back.
 (function(){
-  const sh=$('#sheet');let y0=0,dy=0,t0=0,drag=false,armed=false;
+  const sh=$('#sheet'),wrap=$('#sheetWrap');let y0=0,dy=0,drag=false,armed=false,ly=0,lt=0,v=0;
   sh.addEventListener('touchstart',e=>{
     if(e.touches.length!==1){armed=false;return;}
     const tg=e.target,onGrab=!!tg.closest('.grab');
-    if(!onGrab&&tg.closest('input,textarea,select,.chips'))return;
-    armed=onGrab||sh.scrollTop<=0;drag=false;y0=e.touches[0].clientY;dy=0;t0=Date.now();
+    if(!onGrab&&tg.closest('input,textarea,select,.chips,.ruler,.swatches'))return;
+    armed=onGrab||sh.scrollTop<=0;drag=false;y0=ly=e.touches[0].clientY;dy=0;v=0;lt=e.timeStamp;
   },{passive:true});
   sh.addEventListener('touchmove',e=>{
-    if(!armed)return;dy=e.touches[0].clientY-y0;
+    if(!armed)return;const Y=e.touches[0].clientY;dy=Y-y0;
+    if(e.timeStamp>lt){v=.6*v+.4*((Y-ly)/(e.timeStamp-lt));ly=Y;lt=e.timeStamp;}
     if(!drag){if(dy>8&&sh.scrollTop<=0)drag=true;else{if(dy<-4)armed=false;return;}}
-    e.preventDefault();sh.style.transition='none';sh.style.transform=`translateY(${Math.max(0,dy)}px)`;
+    e.preventDefault();sh.style.transition='none';
+    const y=dy>0?dy:dy/4;sh.style.transform=`translateY(${y}px)`;wrap.style.opacity=String(Math.max(.35,1-Math.max(0,dy)/(sh.offsetHeight*1.4)));
   },{passive:false});
   function end(){
     if(!armed)return;armed=false;if(!drag)return;drag=false;
-    sh.style.transition='';const v=dy/Math.max(1,Date.now()-t0);
-    if(dy>110||(dy>40&&v>0.5)){sh.style.transform='translateY(100%)';setTimeout(()=>{closeSheet();sh.style.transform='';},170);}
-    else sh.style.transform='';
+    if(dy>110||(dy>30&&v>.45)){
+      const left=sh.offsetHeight-dy,ms=Math.round(Math.max(140,Math.min(320,left/Math.max(v,1.2))));
+      sh.style.transition=`transform ${ms}ms cubic-bezier(.3,.7,.4,1)`;sh.style.transform='translateY(100%)';wrap.style.transition=`opacity ${ms}ms`;wrap.style.opacity='0';
+      setTimeout(()=>{closeSheet();sh.style.transform='';sh.style.transition='';wrap.style.transition='';wrap.style.opacity='';},ms);
+    }
+    else{sh.style.transition='transform .5s var(--spring)';sh.style.transform='';wrap.style.opacity='';setTimeout(()=>{sh.style.transition='';},500);}
   }
   sh.addEventListener('touchend',end);sh.addEventListener('touchcancel',end);
 })();
@@ -1170,7 +1300,8 @@ function openEditor(type,e,prefill){
   ed=e;ed._new=isNew;
   const d=e.data;let f=`<h2>${isNew?'New':'Edit'} ${LABEL[type].toLowerCase()}</h2>`;
   const ago=(id,list=[0,5,10,15,30])=>`<div class="presets ago">${list.map(m=>`<button type="button" class="chip" data-act="ago" data-t="${id}" data-m="${m}">${m?m+' min ago':'Now'}</button>`).join('')}</div>`;
-  const time=(label='Time')=>fld(label,`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start');
+  // New entries pick their time on the ruler; editing an older entry keeps the date and time field.
+  const time=(label='Time')=>isNew?fldD(label,ruler('f-start',e.start,180)):fld(label,`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start');
   const note=()=>fld('Note',`<textarea id="f-note" rows="2" placeholder="optional">${esc(d.note||'')}</textarea>`);
   const showTemp=feat('temp')||d.temp!=null,tempF=()=>showTemp?fld('Temperature (°C)',txt('f-temp',d.temp??'','decimal','optional')):'';
   const pick=(id,MAP,val,cls='chip')=>`<input type="hidden" id="${id}" value="${esc(val||'')}"><div class="chips wrap">${Object.entries(MAP).map(([k,l])=>`<button type="button" class="${cls} ${val===k?'on':''}" data-act="pick" data-group="${id}" data-val="${esc(k)}">${esc(l)}</button>`).join('')}</div>`;
@@ -1185,8 +1316,10 @@ function openEditor(type,e,prefill){
       f+=fldD('Amount (ml)',`<div class="stepper"><button type="button" data-act="step" data-t="f-ml" data-d="-10" aria-label="Less">−</button>${txt('f-ml',ml,'numeric')}<button type="button" data-act="step" data-t="f-ml" data-d="10" aria-label="More">+</button></div><div class="presets">${[60,90,120,150,180,210].map(v=>`<button type="button" class="chip" data-act="setv" data-t="f-ml" data-v="${v}">${v}</button>`).join('')}</div>`);
       f+=fldD('Milk',seg('f-kind',[['breastmilk','Breast milk'],['formula','Formula']],d.kind||S.prefs.kind));f+=note();break;}
     case 'sleep':
-      f+=fld('Fell asleep',`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start',[15,30,60,90,120]);
-      f+=fld('Woke up',`<input id="f-end" type="datetime-local" value="${toInput(e.end)}">`)+ago('f-end');f+=note();break;
+      if(isNew){f+=fldD('Fell asleep',ruler('f-start',e.start,720))+fldD('Woke up',ruler('f-end',e.end,720));}
+      else{f+=fld('Fell asleep',`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start',[15,30,60,90,120]);
+        f+=fld('Woke up',`<input id="f-end" type="datetime-local" value="${toInput(e.end)}">`)+ago('f-end');}
+      f+=note();break;
     case 'diaper':{
       // Wet saves in one tap. Dirty or Both opens the stool panel (Settings → Stool details:
       // ask every time), or saves at once if details are off or only added on request.
@@ -1195,11 +1328,12 @@ function openEditor(type,e,prefill){
       const nf=fld('Note',`<input id="f-note" type="text" value="${esc(d.note||'')}" placeholder="optional" autocomplete="off">`);
       f+=showTemp?`<div class="two">${tempF()}${nf}</div>`:nf;
       f+=`<div class="presets dz"><button type="button" class="chip ${d.rash?'on':''}" id="f-rash" data-act="tog">Nappy rash</button>${isNew&&sm==='tap'?'<button type="button" class="chip" data-act="stool-open">+ Stool details</button>':''}</div>`;
-      if(isNew){f+=`<input type="hidden" id="f-kind" value="wet"><div class="big3"><button data-act="diaper-kind" data-kind="wet">Wet</button><button data-act="diaper-kind" data-kind="dirty">Dirty</button><button data-act="diaper-kind" data-kind="both">Both</button></div>`;}
+      const pk=prefill&&typeof prefill==='object'&&prefill.kind,kb=(k,l)=>`<button data-act="diaper-kind" data-kind="${k}"${pk===k?' class="on"':''}>${l}</button>`;
+      if(isNew){f+=`<input type="hidden" id="f-kind" value="${pk||'wet'}"><div class="big3">${kb('wet','Wet')}${kb('dirty','Dirty')}${kb('both','Both')}</div>`;}
       else f+=fldD('Kind',seg('f-kind',[['wet','Wet'],['dirty','Dirty'],['both','Both'],['dry','Dry']],d.kind||'wet'));
       if(panel){
         const sw=`<input type="hidden" id="f-scol" value="${esc(d.color||'')}"><div class="swatches">${Object.entries(STOOL).map(([k,[l,hex]])=>`<button type="button" class="swb ${d.color===k?'on':''}" data-act="pick" data-group="f-scol" data-val="${k}" aria-label="${esc(l)}" title="${esc(l)}"><i style="--sw:${hex}"></i><span>${k==='pale'?'Pale / grey':esc(l)}</span></button>`).join('')}</div>`;
-        f+=`<div class="stool ${!isNew&&hasStool(d)?'open':''}" id="f-stool"><div class="stool-in">
+        f+=`<div class="stool ${(!isNew&&hasStool(d))||(pk&&pk!=='wet')?'open':''}" id="f-stool"><div class="stool-in">
           ${fldD('Colour',sw)}${fldD('Consistency',pick('f-scons',CONS,d.cons))}${fldD('Amount',pick('f-samt',AMT,d.amt))}
           ${fldD('Also noticed',`<div class="chips wrap" id="f-sx">${Object.entries(SX).map(([k,l])=>`<button type="button" class="chip ${(d.x||[]).includes(k)?'on':''}" data-act="tog" data-v="${k}">${esc(l)}</button>`).join('')}</div>`)}
           ${isNew?'<div class="foot"><button class="btn primary" data-act="ed-save">Save</button></div><button class="link" data-act="stool-skip">Save without details</button>':''}</div></div>`;
@@ -1265,6 +1399,7 @@ function medFill(name){
   setPick('f-munit',x.unit);setPick('f-mform',x.form);
 }
 function readEditor(){
+  syncRulers();
   const v=id=>{const el=$('#'+id);return el?el.value:'';};
   const e=ed,d={};let start=fromInput(v('f-start')),end;
   switch(e.type){
@@ -1318,6 +1453,44 @@ function saveEditor(){
   }catch(err){toast(typeof err==='string'?err:'Could not save this entry.');}
 }
 
+/* ---------- time ruler (3.4) ----------
+   Slide the scale to say when: past is to the left, so dragging it to the right goes back in
+   time. It settles on 5-minute steps; ‹ and › nudge by a minute. The value lives in a hidden
+   date-time field, which "Pick another day or time" reveals for anything further back. */
+const RPX=3;
+function ruler(id,ts,max){
+  const n=Date.now(),mb=Math.max(0,Math.min(max,Math.round((n-ts)/6e4))),off=new Date(n).getMinutes()%5;let ticks='';
+  for(let m=off;m<=max;m+=5){const t=n-m*6e4,d=new Date(t),major=d.getMinutes()%15===0;
+    ticks+=`<i class="tk${major?' mj':''}" style="right:${m*RPX}px">${major?`<span>${hm(t)}</span>`:''}</i>`;}
+  return `<div class="ruler" data-for="${id}" data-max="${max}" data-m="${mb}" tabindex="0" role="slider" aria-label="When" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${mb}">
+    <div class="ruler-read"><button type="button" class="rn" data-act="rnudge" data-d="1" aria-label="1 minute earlier">‹</button><span class="rv"><b></b><span></span></span><button type="button" class="rn" data-act="rnudge" data-d="-1" aria-label="1 minute later">›</button></div>
+    <div class="ruler-win"><div class="ruler-track" style="width:${max*RPX+40}px"><i class="tk now" style="right:0"><span>now</span></i>${ticks}</div><i class="ruler-mark"></i></div></div>
+    <input id="${id}" type="datetime-local" value="${toInput(n-mb*6e4)}" hidden><button type="button" class="link rx" data-act="rexact" data-t="${id}">Pick another day or time</button>`;
+}
+function rulerSet(r,m,animate){
+  const max=+r.dataset.max;m=Math.max(0,Math.min(max,m));r.dataset.m=String(m);
+  const t=Date.now()-Math.round(m)*6e4,tr0=r.querySelector('.ruler-track');
+  tr0.style.transition=animate?'transform .35s var(--ease)':'none';tr0.style.transform=`translateX(${m*RPX}px)`;
+  const mm=Math.round(m),b=r.querySelector('.rv b'),sp=r.querySelector('.rv span');
+  const lbl=mm===0?'Now':mm<60?`${mm} min ago`:mm%60===0?`${mm/60}h ago`:`${dur(mm*6e4)} ago`;
+  b.textContent=tr(lbl);sp.textContent=hm(t);r.setAttribute('aria-valuenow',String(mm));r.setAttribute('aria-valuetext',`${tr(lbl)}, ${hm(t)}`);
+  const inp=$('#'+r.dataset.for);if(inp)inp.value=toInput(t);
+}
+const initRulers=root=>root.querySelectorAll('.ruler').forEach(r=>rulerSet(r,+r.dataset.m,false));
+// Before saving: a ruler still on "Now" (or 10 min ago) means now, not when the sheet opened.
+const syncRulers=()=>document.querySelectorAll('#sheet .ruler:not([hidden])').forEach(r=>rulerSet(r,+r.dataset.m,false));
+const readTime=id=>{syncRulers();return fromInput(($('#'+id)||{}).value);};
+(function(){
+  let r=null,x0=0,m0=0,lx=0,lt=0,v=0,touch=false;
+  document.addEventListener('pointerdown',e=>{const w=e.target.closest('.ruler-win');if(!w)return;r=w.closest('.ruler');x0=lx=e.clientX;lt=e.timeStamp;m0=+r.dataset.m;v=0;touch=e.pointerType==='touch';try{w.setPointerCapture(e.pointerId);}catch(_){}});
+  document.addEventListener('pointermove',e=>{if(!r)return;if(e.timeStamp>lt){v=(e.clientX-lx)/(e.timeStamp-lt);lx=e.clientX;lt=e.timeStamp;}rulerSet(r,m0+(e.clientX-x0)/RPX,false);});
+  // A flick with a finger carries on a little; then it settles on the nearest 5 minutes.
+  const up=()=>{if(!r)return;const g=r;r=null;let m=+g.dataset.m+(touch?Math.max(-40,Math.min(40,v*160/RPX)):0);m=Math.round(m/5)*5;rulerSet(g,m,true);haptic('Light');};
+  document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up);
+  document.addEventListener('keydown',e=>{const g=e.target.closest&&e.target.closest('.ruler');if(!g)return;const m=+g.dataset.m;
+    const k={ArrowLeft:5,ArrowDown:5,ArrowRight:-5,ArrowUp:-5,PageUp:60,PageDown:-60}[e.key];
+    if(k!=null){e.preventDefault();rulerSet(g,Math.round((m+k)/5)*5,true);}else if(e.key==='Home'){e.preventDefault();rulerSet(g,0,true);}});
+})();
 function openChooser(){
   const T=[['nurse','Nursing',I.drop,'feed'],['bottle','Bottle',I.bottle,'feed'],['pump','Pumping',I.pump,'pump'],['sleep','Sleep',I.moon,'sleep'],['diaper','Diaper',I.diaper,'diaper'],['solids','Solids',I.spoon,'solids'],['med','Medication',I.pill,'med'],['growth','Measurement',I.growth,'growth'],['other','Other',I.note,'other']].filter(([t])=>t==='other'||feat(t));
   openSheet(`<h2>Add an earlier entry</h2><div class="chooser">${T.map(([t,l,svg,c])=>`<button class="act c-${c}" data-act="new" data-type="${t}">${svg}<span>${l}</span></button>`).join('')}</div><div class="foot"><button class="btn" data-act="close">Cancel</button></div>`);
@@ -1348,6 +1521,21 @@ function featList(welcome){
     return k==='diaper'&&!welcome?row+`<div class="sw-sub" data-for="diaper"${feat('diaper')?'':' hidden'}>${fldD('Stool details for dirty diapers',seg('s-stool',[['auto','Ask after Dirty'],['tap','When I tap'],['off','Off']],st.stool||'auto'))}</div>`:row;
   }).join('')}</div>`;
 }
+// Order of the quick buttons on Today: move one up or down; the list slides into its new order.
+const ORD_L={nurse:['Left and Right',I.drop,'feed'],bottle:['Bottle',I.bottle,'feed'],sleep:['Sleep',I.moon,'sleep'],diaper:['Diaper',I.diaper,'diaper'],solids:['Solids',I.spoon,'solids'],pump:['Pump',I.pump,'pump'],med:['Medicine',I.pill,'med']};
+function ordRows(){
+  const vis=S.settings.order.filter(k=>feat(k));
+  return vis.map((k,i)=>{const [l,svg,c]=ORD_L[k];return `<div class="ord-row c-${c}" data-key="${k}">${svg}<span>${l}</span><button type="button" class="rn" data-act="ord" data-v="${k}" data-d="-1" aria-label="Move ${l} up"${i===0?' disabled':''}>↑</button><button type="button" class="rn" data-act="ord" data-v="${k}" data-d="1" aria-label="Move ${l} down"${i===vis.length-1?' disabled':''}>↓</button></div>`;}).join('');
+}
+function moveOrder(k,d){
+  const o=S.settings.order,vis=o.filter(x=>feat(x)),j=vis.indexOf(k)+d;if(j<0||j>=vis.length)return;
+  const a=o.indexOf(k),b=o.indexOf(vis[j]);[o[a],o[b]]=[o[b],o[a]];save();render();
+  const box=$('#ord');if(!box)return;
+  const before=new Map([...box.children].map(r=>[r.dataset.key,r.getBoundingClientRect().top]));
+  box.innerHTML=ordRows();translateDom(box);
+  if(!reduced())[...box.children].forEach(r=>{const dy=(before.get(r.dataset.key)||0)-r.getBoundingClientRect().top;if(dy&&r.animate)r.animate([{transform:`translateY(${dy}px)`},{transform:'none'}],{duration:380,easing:'cubic-bezier(.2,.9,.25,1.05)'});});
+  const btn=box.querySelector(`[data-act="ord"][data-v="${k}"][data-d="${d}"]`)||box.querySelector(`[data-act="ord"][data-v="${k}"]:not([disabled])`);if(btn)btn.focus();
+}
 function openSettings(welcome){
   const st=S.settings,n=S.events.filter(e=>!e.deleted).length;
   let kb=0;try{kb=Math.round(JSON.stringify(S).length/1024);}catch(e){}
@@ -1359,6 +1547,7 @@ function openSettings(welcome){
   if(!welcome){
     f+=`<div class="set-sec">Look</div>${fldD('Light or dark',seg('s-theme',[['auto','Auto'],['light','Light'],['dark','Dark']],st.theme||'auto'))}${fldD('Theme',palPicker())}<p class="muted" id="oled-note" style="margin:-4px 2px 12px"${st.palette==='oled'?'':' hidden'}>OLED black is always dark.</p>`;
     f+=`<div class="set-sec">What you track</div><p class="muted" style="margin:-2px 2px 10px">Only for this phone. Switching something off hides it; nothing is deleted.</p>${featList(false)}`;
+    f+=`<div class="set-sub">Order of quick buttons</div><div class="ord" id="ord">${ordRows()}</div>`;
   }
   f+=`${fldD('Night light (red, bigger buttons)',seg('s-nauto',[['off','Moon button only'],['on','On a schedule']],st.nightAuto?'on':'off'))}<div class="two">${fld('From',`<input id="s-nfrom" type="time" value="${esc(st.nightFrom||'21:00')}">`)}${fld('Until',`<input id="s-nto" type="time" value="${esc(st.nightTo||'07:00')}">`)}</div>`;
   f+=`<button class="btn primary" style="width:100%" data-act="set-save">${welcome?'Start':'Save'}</button>`;
@@ -1534,7 +1723,7 @@ function toCSV(){
 // Each month of entries is one file (yupu/2026-09.json) plus yupu/profile.json.
 // Pull: list the folder, fetch only files whose version changed, merge by id + updatedAt.
 // Push: rewrite only months changed on this phone, with the file's version as a lock; on a clash, re-pull and retry.
-const APP_VERSION='3.3.0',APP_DATE='2026-11-26',SYNC_DIR='yupu';
+const APP_VERSION='3.4.0',APP_DATE='2026-11-26',SYNC_DIR='yupu';
 const monthKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1);};
 let syncing=false,syncTimer=null,syncAgain=false;
 function markDirty(...keys){if(!S.sync)return;S.sync.dirty=S.sync.dirty||{};keys.forEach(k=>{if(k)S.sync.dirty[k]=1;});scheduleSync();}
@@ -1681,7 +1870,7 @@ function syncTurnOff(){
 function openStartEarlier(kind,side){
   const what=kind==='sleep'?'Fell asleep':side==='l'?'Started on the left':'Started on the right';
   openSheet(`<h2>${what}</h2><div class="presets ago">${[2,5,10,15,20,30,45].map(m=>`<button class="chip" data-act="start-ago" data-k="${kind}" data-side="${side||''}" data-m="${m}">${m} min ago</button>`).join('')}</div>
-    ${fld('Or at',`<input id="start-at" type="datetime-local" value="${toInput(Date.now())}">`)}
+    ${fldD('Or at',ruler('start-at',Date.now(),720))}
     <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="start-at" data-k="${kind}" data-side="${side||''}">Start</button></div>`);
 }
 function startAt(kind,side,ts){
@@ -1706,27 +1895,90 @@ function startAt(kind,side,ts){
   });
   document.addEventListener('pointermove',e=>{if(t&&Math.hypot(e.clientX-x0,e.clientY-y0)>10)cancel();});
   ['pointerup','pointercancel'].forEach(k=>document.addEventListener(k,cancel));
-  document.addEventListener('click',e=>{if(held){held=false;e.stopPropagation();e.preventDefault();}},true);
+  document.addEventListener('click',e=>{if(held&&!webTapping){held=false;e.stopPropagation();e.preventDefault();}},true);
   document.addEventListener('contextmenu',e=>{if(e.target.closest('.act'))e.preventDefault();});
 })();
-// Swipe a row left to delete it (with Undo). Rows in sheets are left alone.
+/* ---------- gestures on the main screen (3.4) ----------
+   On a row: swipe left to delete (Undo), swipe right to log the same again (diapers, bottles,
+   medication, solids, pumping, other). Elsewhere: swipe sideways to move between tabs, and on
+   Today pull down from the top to sync now (when automatic sync is on). Rows in sheets, chip
+   rows, inputs and the time ruler are left alone. */
+const REPEAT=new Set(['diaper','bottle','med','solids','pump','other']);
+const canRepeat=e=>!!e&&!e.deleted&&REPEAT.has(e.type)&&!(e.type==='other'&&/^(u-check|vaccine|not planned|skipped)/i.test(labelOf(e)));
+function repeatEntry(id){
+  const o=S.events.find(x=>x.id===id);if(!canRepeat(o))return null;
+  const e=o.type==='med'?medRepeat(medName(o),o):{id:uid(),type:o.type,start:Date.now(),data:JSON.parse(JSON.stringify(o.data||{}))};
+  delete e.data.note;delete e.data.temp;
+  upsert(e);render();haptic('Medium');
+  toast(`${describe(e).title} logged again at ${hm(e.start)}`,()=>removeEv(e.id));
+  return e;
+}
+// Moves to another tab: the new screen slides in from the side it lives on.
+function goTab(to){
+  if(to===tab)return;const ids=tabsOn().map(x=>x[0]);if(!ids.includes(to))return;
+  const dir=ids.indexOf(to)>ids.indexOf(tab)?'fwd':'back',R=document.documentElement,m=$('#main');
+  const run=()=>{tab=to;window.scrollTo(0,0);render();};
+  haptic('Light');
+  if(document.startViewTransition&&!reduced()){
+    R.dataset.dir=dir;R.dataset.vt='1';
+    try{const vt=document.startViewTransition(run);vt.finished.finally(()=>{delete R.dataset.dir;delete R.dataset.vt;});return;}catch(e){delete R.dataset.dir;delete R.dataset.vt;}
+  }
+  run();m.dataset.dir=dir;m.classList.remove('enter');void m.offsetWidth;m.classList.add('enter');
+}
+const neighbourTab=d=>{const ids=tabsOn().map(x=>x[0]);return ids[ids.indexOf(tab)+d]||null;};
 (function(){
-  let li=null,btn=null,x0=0,y0=0,dx=0,mode='';
-  const main=$('#main');
-  main.addEventListener('touchstart',e=>{const b=e.target.closest('.list .row[data-act="edit"]');li=b&&b.parentElement;btn=b;mode='';dx=0;if(!b||e.touches.length!==1){li=null;return;}x0=e.touches[0].clientX;y0=e.touches[0].clientY;},{passive:true});
+  const main=$('#main'),ptr=document.createElement('div');
+  ptr.id='ptr';ptr.setAttribute('aria-hidden','true');ptr.innerHTML='<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg>';document.body.appendChild(ptr);
+  let li=null,btn=null,x0=0,y0=0,dx=0,dy=0,mode='',lastX=0,lastT=0,vx=0,pulled=0;
+  const skip=t=>t.closest('.chips,.seg,input,textarea,select,.ruler,.sheet');
+  main.addEventListener('touchstart',e=>{
+    mode='';dx=dy=0;vx=0;li=btn=null;if(e.touches.length!==1)return;
+    const t=e.target;btn=t.closest('.list .row[data-act="edit"]');li=btn&&btn.parentElement;
+    x0=lastX=e.touches[0].clientX;y0=e.touches[0].clientY;lastT=e.timeStamp;
+    if(!btn&&skip(t))mode='none';
+  },{passive:true});
   main.addEventListener('touchmove',e=>{
-    if(!li)return;const x=e.touches[0].clientX-x0,y=e.touches[0].clientY-y0;
-    if(!mode){if(Math.abs(x)<8&&Math.abs(y)<8)return;mode=Math.abs(x)>Math.abs(y)*1.3&&x<0?'swipe':'scroll';if(mode==='swipe'){li.dataset.del=tr('Delete');li.classList.add('swiping');}}
-    if(mode!=='swipe')return;e.preventDefault();dx=Math.min(0,x);btn.style.transform=`translateX(${dx}px)`;li.classList.toggle('armed',dx<-110);
+    if(mode==='none'||e.touches.length!==1)return;
+    const X=e.touches[0].clientX,x=X-x0,y=e.touches[0].clientY-y0;
+    if(e.timeStamp>lastT){vx=(X-lastX)/(e.timeStamp-lastT);lastX=X;lastT=e.timeStamp;}
+    if(!mode){
+      if(Math.abs(x)<8&&Math.abs(y)<8)return;
+      const side=Math.abs(x)>Math.abs(y)*1.3;
+      if(side&&btn){const ev=S.events.find(v=>v.id===btn.dataset.id);mode=x<0?'del':canRepeat(ev)?'again':'none';}
+      else if(side)mode=sheetOpen()?'none':'tab';
+      else if(y>0&&!btn&&tab==='today'&&S.sync.on&&window.scrollY<=0&&!sheetOpen())mode='pull';
+      else mode='none';
+      if(mode==='del'||mode==='again'){li.dataset.del=tr('Delete');li.dataset.again=tr('Log again');li.classList.add('swiping',mode==='again'?'again':'del');}
+      if(mode==='none')return;
+    }
+    e.preventDefault();
+    if(mode==='del'){dx=Math.min(0,x);btn.style.transform=`translateX(${dx}px)`;li.classList.toggle('armed',dx<-110);}
+    else if(mode==='again'){dx=Math.max(0,x);btn.style.transform=`translateX(${dx}px)`;li.classList.toggle('armed',dx>110);}
+    else if(mode==='tab'){dx=x;const has=!!neighbourTab(x<0?1:-1);main.style.transition='none';main.style.transform=`translateX(${x*(has?.28:.1)}px)`;main.style.opacity=has?String(1-Math.min(.35,Math.abs(x)/900)):'';}
+    else if(mode==='pull'){dy=y;pulled=Math.min(96,y*.5);ptr.style.transition='none';ptr.style.opacity=String(Math.min(1,pulled/56));ptr.style.transform=`translate(-50%,${pulled}px) rotate(${y*2.2}deg)`;ptr.classList.toggle('armed',pulled>=60);}
   },{passive:false});
+  const stopClick=()=>{const stop=ev=>{if(webTapping)return;ev.stopPropagation();ev.preventDefault();document.removeEventListener('click',stop,true);};document.addEventListener('click',stop,true);setTimeout(()=>document.removeEventListener('click',stop,true),400);};
   const end=()=>{
-    if(!li)return;const l=li,b=btn;li=null;
-    if(mode!=='swipe')return;
-    l.classList.remove('armed');
-    if(dx<-110){b.style.transform='translateX(-100%)';haptic('Medium');const id=b.dataset.id;
-      setTimeout(()=>{const old=removeEv(id);render();toast('Entry deleted',()=>{if(old)upsert({...old});});},180);}
-    else{b.style.transform='';setTimeout(()=>l.classList.remove('swiping'),250);}
-    const stop=ev=>{ev.stopPropagation();ev.preventDefault();};document.addEventListener('click',stop,{capture:true,once:true});setTimeout(()=>document.removeEventListener('click',stop,true),400);
+    const m=mode;mode='';
+    if(m==='del'||m==='again'){
+      const l=li,b=btn,id=b.dataset.id;l.classList.remove('armed');stopClick();
+      if(m==='del'&&dx<-110){b.style.transform='translateX(-100%)';haptic('Medium');
+        setTimeout(()=>{const old=removeEv(id);render();toast('Entry deleted',()=>{if(old)upsert({...old});});},180);}
+      else if(m==='again'&&dx>110){b.style.transform='';setTimeout(()=>{l.classList.remove('swiping','again','del');repeatEntry(id);},220);}
+      else{b.style.transform='';setTimeout(()=>l.classList.remove('swiping','again','del'),250);}
+    }
+    else if(m==='tab'){
+      const go=Math.abs(dx)>80||(Math.abs(dx)>40&&Math.abs(vx)>.45),to=go?neighbourTab(dx<0?1:-1):null;stopClick();
+      if(to){main.style.transition='none';main.style.transform='';main.style.opacity='';goTab(to);}
+      else{main.style.transition='transform .45s var(--spring),opacity .3s';main.style.transform='';main.style.opacity='';setTimeout(()=>{main.style.transition='';},460);}
+    }
+    else if(m==='pull'){
+      ptr.style.transition='';
+      if(pulled>=60){ptr.classList.add('spin');ptr.style.transform='translate(-50%,64px)';haptic('Medium');
+        Promise.resolve(autoSync()).catch(()=>{}).finally(()=>{ptr.classList.remove('spin','armed');ptr.style.transform='';ptr.style.opacity='0';});}
+      else{ptr.classList.remove('armed');ptr.style.transform='';ptr.style.opacity='0';}
+      pulled=0;
+    }
   };
   main.addEventListener('touchend',end);main.addEventListener('touchcancel',end);
 })();
@@ -1741,8 +1993,8 @@ function setTimerStart(kind,ns){
 }
 function openAdjust(kind){
   const a=S.active[kind];if(!a)return;
-  openSheet(`<h2>${kind==='sleep'?'Fell asleep at':'Feed started at'}</h2>${fld('Start time',`<input id="adj-start" type="datetime-local" value="${toInput(a.start)}">`)}
-    <div class="presets ago">${[5,10,15,20,30,45].map(m=>`<button type="button" class="chip" data-act="ago" data-t="adj-start" data-m="${m}">${m} min ago</button>`).join('')}</div>
+  const back=Math.min(1440,Math.max(180,Math.ceil((Date.now()-a.start)/6e4)+60));
+  openSheet(`<h2>${kind==='sleep'?'Fell asleep at':'Feed started at'}</h2>${fldD('Start time',ruler('adj-start',a.start,back))}
     <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="adj-save" data-k="${kind}">Save</button></div>`);
 }
 
@@ -1752,7 +2004,14 @@ function openAdjust(kind){
    the same index.html serves both without a separate build. */
 const CAP=()=>window.Capacitor;
 const nativeOn=()=>{try{return !!(CAP()&&CAP().isNativePlatform&&CAP().isNativePlatform());}catch(e){return false;}};
-function haptic(style){if(!nativeOn())return;const H=CAP().Plugins&&CAP().Plugins.Haptics;if(!H)return;try{H.impact({style:style||'Light'}).catch(()=>{});}catch(e){}}
+/* On the web app: iPhone (iOS 18 and later) gives a light tap when a switch control toggles;
+   a hidden one is toggled for each tap that should be felt. Elsewhere this does nothing. */
+let hapEl,webTapping=false;
+function webTap(){
+  try{if(hapEl===undefined){hapEl=null;if('switch' in HTMLInputElement.prototype&&/iP(hone|ad|od)/.test(navigator.userAgent)){const l=document.createElement('label');l.setAttribute('aria-hidden','true');l.style.cssText='position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';l.innerHTML='<input type="checkbox" switch tabindex="-1">';document.body.appendChild(l);hapEl=l;}}
+    if(hapEl){webTapping=true;try{hapEl.click();}finally{webTapping=false;}}}catch(e){}
+}
+function haptic(style){if(!nativeOn()){webTap();return;}const H=CAP().Plugins&&CAP().Plugins.Haptics;if(!H)return;try{H.impact({style:style||'Light'}).catch(()=>{});}catch(e){}}
 const VIT_NOTIF_ID=4001;
 async function remindersPermission(){
   const LN=CAP()?.Plugins?.LocalNotifications;if(!LN)return false;
@@ -1791,31 +2050,36 @@ function applyTheme(){
 if(mq.addEventListener) mq.addEventListener('change',applyTheme);
 let toastT;
 function toast(msg,action,label,skipRender){
-  const el=$('#toast');el.innerHTML=`<span>${esc(tr(msg))}</span>${action?`<button type="button" id="toastAction">${esc(tr(label||'Undo'))}</button>`:''}`;
+  const el=$('#toast'),ok=/\b(saved|logged|started|restored)\b/i.test(msg)&&!/^under|not saved/i.test(msg);
+  el.innerHTML=`${ok?'<svg class="tchk" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg>':''}<span>${esc(tr(msg))}</span>${action?`<button type="button" id="toastAction">${esc(tr(label||'Undo'))}</button>`:''}`;
   el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),action?6000:2600);
   if(action) $('#toastAction').onclick=()=>{action();el.classList.remove('show');if(!skipRender)render();};
 }
 
 /* ---------- actions ---------- */
 document.addEventListener('click',ev=>{
-  const t=ev.target.closest('[data-act]');if(!t)return;
-  const act=t.dataset.act,n=Date.now();
+  if(webTapping)return;
+  const t=ev.target.closest('[data-act]');
+  // A tap anywhere else closes the diaper tray.
+  if(tray&&!(t&&(t.closest('.tray')||t.dataset.act==='tray'))){tray=null;render();}
+  if(!t)return;
+  const act=t.dataset.act,n=Date.now();lastTap={el:t,at:n};
   switch(act){
     case 'close-bg': if(ev.target===t) closeSheet(); break;
     case 'close': closeSheet(); break;
-    case 'tab':{const same=tab===t.dataset.tab;tab=t.dataset.tab;window.scrollTo(0,0);render();if(!same){const m=$('#main');m.classList.remove('enter');void m.offsetWidth;m.classList.add('enter');haptic('Light');}break;}
+    case 'tab':{const to=t.dataset.tab;if(to===tab){window.scrollTo({top:0,behavior:reduced()?'auto':'smooth'});break;}goTab(to);break;}
     case 'night':{const st=S.settings;if(nightActive()){st.night=false;if(nightWindowActive())st.nightSkipUntil=nightWindowEnd();}else{st.night=true;st.nightSkipUntil=0;}save();applyTheme();render();break;}
     case 'settings': openSettings(false);break;
-    case 'nurse-side': haptic('Light');nurseStart(t.dataset.side);break;
+    case 'nurse-side':{haptic('Light');const fresh0=!S.active.nurse;nurseStart(t.dataset.side);if(fresh0)pop($(`#main .act[data-act="nurse-side"][data-side="${t.dataset.side}"]`));break;}
     case 'nurse-pause':{const a=S.active.nurse;if(!a)break;haptic('Light');if(curSide(a))closeOpen(a,n);else a.segs.push({side:lastSide(a),from:n,to:null});touchActive('nurse');save();render();break;}
     case 'nurse-done': haptic('Medium');nurseDone();break;
     case 'nurse-discard': if(confirm(tr('Discard this feed?'))){S.active.nurse=null;touchActive('nurse');save();render();}break;
-    case 'sleep-start': haptic('Light');S.active.sleep={id:uid(),start:n,by:S.settings.device||''};touchActive('sleep');save();render();toast('Sleep started');break;
+    case 'sleep-start': haptic('Light');S.active.sleep={id:uid(),start:n,by:S.settings.device||''};touchActive('sleep');save();render();pop($('#main .act[data-act="sleep-stop"]'));toast('Sleep started');break;
     case 'sleep-stop':{const a=S.active.sleep;if(!a)break;haptic('Medium');S.active.sleep=null;touchActive('sleep');
       if(n-a.start<60e3){save();render();toast('Under a minute, not saved');break;}
-      const e={id:a.id||uid(),type:'sleep',start:a.start,end:n,data:{}};upsert(e);render();toast(`Sleep saved, ${dur(n-a.start)}`,()=>removeEv(e.id));break;}
+      const e={id:a.id||uid(),type:'sleep',start:a.start,end:n,data:{}};upsert(e);render();pop($('#main .act[data-act="sleep-start"]'));toast(`Sleep saved, ${dur(n-a.start)}`,()=>removeEv(e.id));break;}
     case 'sleep-discard': if(confirm(tr('Discard this sleep?'))){S.active.sleep=null;touchActive('sleep');save();render();}break;
-    case 'new': closeSheet();openEditor(t.dataset.type);break;
+    case 'new': closeSheet();openEditor(t.dataset.type);if(tray){tray=null;render();}break;
     case 'new-food': openEditor('solids',null,t.dataset.food);break;
     case 'edit':{const e=S.events.find(x=>x.id===t.dataset.id);if(e)openEditor(e.type,e);break;}
     case 'add-any': openChooser();break;
@@ -1837,6 +2101,10 @@ document.addEventListener('click',ev=>{
       saveEditor();break;}
     case 'stool-open':{const p=$('#f-stool');if(p){p.classList.toggle('open');t.classList.toggle('on',p.classList.contains('open'));}break;}
     case 'stool-skip': if(ed){ed._nostool=true;saveEditor();}break;
+    case 'rnudge':{const r=t.closest('.ruler');if(r)rulerSet(r,Math.round(+r.dataset.m)+(+t.dataset.d),true);break;}
+    case 'rexact':{const inp=$('#'+t.dataset.t),r=$(`.ruler[data-for="${t.dataset.t}"]`);if(inp){inp.hidden=false;inp.classList.add('rx-in');inp.focus();}if(r)r.hidden=true;t.hidden=true;break;}
+    case 'tray': tray=tray===t.dataset.type?null:t.dataset.type;haptic('Light');render();break;
+    case 'dq': quickDiaper(t.dataset.kind);break;
     case 'med-name':{const el=$('#f-mname');el.value=t.dataset.v;medFill(t.dataset.v);break;}
     case 'step':{const el=$('#'+t.dataset.t);el.value=Math.max(0,(Math.round(num(el.value))||0)+(+t.dataset.d));break;}
     case 'setv': $('#'+t.dataset.t).value=t.dataset.v;break;
@@ -1845,17 +2113,18 @@ document.addEventListener('click',ev=>{
     case 'adj': setTimerStart(t.dataset.k,S.active[t.dataset.k].start-(+t.dataset.m)*6e4);break;
     case 'adj-open': openAdjust(t.dataset.k);break;
     case 'start-ago': startAt(t.dataset.k,t.dataset.side,n-(+t.dataset.m)*6e4);break;
-    case 'start-at': startAt(t.dataset.k,t.dataset.side,fromInput($('#start-at').value));break;
+    case 'start-at': startAt(t.dataset.k,t.dataset.side,readTime('start-at'));break;
     case 'bar': toast(t.dataset.tip);break;
     case 'ob-step':{const ob=t.closest('.ob');if(ob){ob.dataset.step=t.dataset.n;$('#sheet').scrollTop=0;
       // Solids start off for a baby under about 5 months, unless switched on by hand.
       const sw=$('#sheet [data-feat="solids"]'),dob=fromInput(($('#s-dob')||{}).value);
       if(t.dataset.n==='3'&&sw&&!sw.dataset.touched)sw.checked=!(dob>0)||daysBetween(dob,Date.now())>=150;}break;}
+    case 'ord': moveOrder(t.dataset.v,+t.dataset.d);break;
     case 'pal': lookChange(()=>{S.settings.palette=t.dataset.v;});haptic('Light');break;
     case 'ob-sync': saveSettings();openSettings(false);setTimeout(()=>{const r=$('#s-repo');if(r)r.scrollIntoView({block:'center'});},350);break;
     case 'reload': location.reload();break;
-    case 'adj-save':{const ns=fromInput($('#adj-start').value);if(isNaN(ns)){toast('Enter a valid time.');break;}if(setTimerStart(t.dataset.k,ns))closeSheet();break;}
-    case 'daily':{haptic('Medium');const e=medRepeat(t.dataset.name);upsert(e);render();refreshVitReminder();toast(`${e.data.name} logged`,()=>{removeEv(e.id);refreshVitReminder();});break;}
+    case 'adj-save':{const ns=readTime('adj-start');if(isNaN(ns)){toast('Enter a valid time.');break;}if(setTimerStart(t.dataset.k,ns))closeSheet();break;}
+    case 'daily':{haptic('Medium');const e=medRepeat(t.dataset.name);upsert(e);render();pop($(`#main .vit[data-key="daily-${CSS.escape(t.dataset.name)}"]`));refreshVitReminder();toast(`${e.data.name} logged`,()=>{removeEv(e.id);refreshVitReminder();});break;}
     case 'solids-on': S.settings.features.solids=true;S.prefs.solidsAsked=1;save();render();toast('Solids turned on');break;
     case 'solids-later': S.prefs.solidsAsked=1;save();render();break;
     case 'sync-on': syncTurnOn();break;
@@ -1865,8 +2134,8 @@ document.addEventListener('click',ev=>{
     case 'hist': openHistory(t.dataset.id);break;
     case 'guard-yes':{const x=S.active[t.dataset.k];if(x){x.ack=n+(t.dataset.k==='sleep'?2*36e5:30*6e4);touchActive(t.dataset.k);save();render();}break;}
     case 'guard-end': openEndAt(t.dataset.k);break;
-    case 'end-save': if(endTimerAt(t.dataset.k,fromInput($('#end-at').value)))closeSheet();break;
-    case 'med-again':{const o=S.events.find(x=>x.id===t.dataset.id);if(o){const e=medRepeat(medName(o),o);upsert(e);render();toast(`${e.data.name} logged at ${hm(n)}`,()=>removeEv(e.id));}break;}
+    case 'end-save': if(endTimerAt(t.dataset.k,readTime('end-at')))closeSheet();break;
+    case 'med-again':{const o=S.events.find(x=>x.id===t.dataset.id);if(o){const e=medRepeat(medName(o),o);upsert(e);render();pop($(`#main .med[data-key="med-${CSS.escape(medName(o).toLowerCase())}"]`));toast(`${e.data.name} logged at ${hm(n)}`,()=>removeEv(e.id));}break;}
     case 'hist-restore':{const e=S.events.find(x=>x.id===t.dataset.id),v=e&&e.hist&&e.hist[+t.dataset.i];if(v){const back={...e,type:v.type||e.type,start:v.start,end:v.end,data:v.data};if(back.type!==e.type)back.keep=1;upsert(back);closeSheet();render();toast('Earlier version restored');}break;}
     case 'deleted': openDeleted();break;
     case 'del-restore':{const e=S.events.find(x=>x.id===t.dataset.id);if(e&&e.deleted&&e.prev){const p={...e.prev};delete p.deleted;upsert(p);render();openDeleted();toast('Entry restored');}break;}

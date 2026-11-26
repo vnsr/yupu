@@ -338,3 +338,99 @@ h2.sec{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.0
 .sdot{stroke:color-mix(in srgb,var(--ink) 18%,transparent);stroke-width:1}.sdot.hot{stroke:var(--danger);stroke-width:2}
 .sbrk{margin-top:6px;font-size:13px}.sbrk .flag{color:var(--danger)}
 [data-theme="red"] .swb i,[data-theme="red"] .rt small .sw,[data-theme="red"] .sdot{filter:grayscale(1) brightness(.6) sepia(1) hue-rotate(-40deg) saturate(3)}
+
+/* ---------- 3.4: smooth ---------- */
+/* Tabs: one highlight pill slides to the current tab; screens slide in from the side they live on. */
+.tab{position:relative;z-index:1}.tab.on{background:transparent}
+.tab-pill{position:absolute;top:6px;bottom:6px;left:0;width:0;border-radius:20px;background:color-mix(in srgb,var(--accent) 14%,transparent);transition:transform .5s var(--spring),width .4s var(--ease);pointer-events:none;z-index:0;view-transition-name:tabpill}
+[data-theme="red"] .tab-pill{background:var(--surface2)}
+#main{view-transition-name:main}
+:root[data-dir="fwd"]::view-transition-old(main){animation:vtOutL .3s cubic-bezier(.4,0,1,1) both}
+:root[data-dir="fwd"]::view-transition-new(main){animation:vtInR .42s cubic-bezier(.22,1,.36,1) both}
+:root[data-dir="back"]::view-transition-old(main){animation:vtOutR .3s cubic-bezier(.4,0,1,1) both}
+:root[data-dir="back"]::view-transition-new(main){animation:vtInL .42s cubic-bezier(.22,1,.36,1) both}
+:root[data-dir]::view-transition-group(tabpill){animation-duration:.42s;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}
+:root[data-dir]::view-transition-old(root),:root[data-dir]::view-transition-new(root){animation-duration:.2s}
+@keyframes vtOutL{to{transform:translateX(-16%);opacity:0}}@keyframes vtOutR{to{transform:translateX(16%);opacity:0}}
+@keyframes vtInR{from{transform:translateX(22%);opacity:0}}@keyframes vtInL{from{transform:translateX(-22%);opacity:0}}
+main.enter[data-dir="fwd"]{animation:viewInR .36s var(--ease)}main.enter[data-dir="back"]{animation:viewInL .36s var(--ease)}
+@keyframes viewInR{from{opacity:0;transform:translateX(26px)}}@keyframes viewInL{from{opacity:0;transform:translateX(-26px)}}
+/* Rows: a new one slides in with a short glow, a removed one folds away; swipe right logs again. */
+.list li.fx-new{animation:rowIn .55s var(--ease) both}.list li.fx-new .row{animation:rowGlow 1s ease-out both}
+@keyframes rowIn{from{opacity:0;transform:translateY(-8px) scale(.985)}}
+@keyframes rowGlow{0%,35%{background:color-mix(in srgb,var(--c) 16%,var(--surface))}100%{background:transparent}}
+.list li.fx-out{overflow:hidden;opacity:0;transition:height .32s var(--ease),opacity .22s}
+.list li.swiping.again{background:var(--accent)}
+.list li.swiping.again::after{content:attr(data-again);left:18px;right:auto}
+/* Rolling digits */
+.roll .rc{display:inline-block;position:relative;white-space:pre}
+.roll .ri{display:inline-block;animation:rollIn .38s cubic-bezier(.2,.9,.3,1.15) both}
+.roll .ro{position:absolute;left:0;top:0;animation:rollOut .3s ease-in both}
+@keyframes rollIn{from{transform:translateY(55%);opacity:0}}@keyframes rollOut{to{transform:translateY(-55%);opacity:0}}
+/* Logged: the button pops and a check mark draws in; saves show a check in the toast. */
+.fx-pop{animation:popB .6s var(--spring)}
+@keyframes popB{0%{transform:scale(1)}25%{transform:scale(.92)}60%{transform:scale(1.05)}100%{transform:scale(1)}}
+.vit,.med{position:relative}
+.chk{position:absolute;inset:0;display:grid;place-items:center;border-radius:inherit;background:color-mix(in srgb,var(--c,var(--accent)) 90%,transparent);color:var(--on);animation:chkBg .9s ease both;pointer-events:none;z-index:2}
+.vit .chk{background:color-mix(in srgb,var(--vit) 92%,transparent)}
+.chk svg{width:36px;height:36px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.chk path,.tchk path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .4s var(--ease) .1s forwards}
+@keyframes chkBg{0%{opacity:0}15%,65%{opacity:1}100%{opacity:0}}
+.tchk{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;margin-right:-8px}
+[data-theme="red"] .chk{background:var(--c,var(--sleep))}
+/* Day ring: arcs draw in, markers pop, the hand sweeps; markers and arcs open their entry. */
+.ring .sl{stroke-dasharray:1;animation:arcIn 1s var(--ease) .1s both}
+@keyframes arcIn{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+.ring .mk{transform-box:fill-box;transform-origin:center;animation:dotIn .45s var(--spring) .4s both;cursor:pointer}
+@keyframes dotIn{from{transform:scale(0);opacity:0}}
+.ring .rhit{fill:transparent}.ring [data-act]{cursor:pointer}
+.ring .handg{transform-box:view-box;transform-origin:160px 160px;transition:transform 1.2s var(--ease);animation:handIn 1.1s var(--ease) both}
+@keyframes handIn{from{transform:rotate(0deg)}}
+/* Charts: bars grow one after another, sleep blocks sweep in, the temperature line draws. */
+.chart .bar{transform-box:fill-box;transform-origin:50% 100%;animation:barUp .55s var(--ease) both;animation-delay:calc(var(--i,0)*28ms)}
+@keyframes barUp{from{transform:scaleY(0)}}
+.chart .pblk{transform-box:fill-box;transform-origin:0 50%;animation:growX .6s var(--ease) both;animation-delay:calc(var(--i,0)*40ms)}
+@keyframes growX{from{transform:scaleX(0)}}
+.chart .sdot{transform-box:fill-box;transform-origin:center;animation:dotIn .45s var(--spring) both;animation-delay:calc(var(--i,0)*30ms)}
+.tline{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1s var(--ease) .15s forwards}
+/* Diaper without a sheet */
+.act.open{background:var(--diaper);color:var(--on);border-color:transparent}.act.open svg{color:var(--on);filter:none}
+.tray{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin:2px 0 10px;padding:8px;border-radius:22px;background:color-mix(in srgb,var(--diaper) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--diaper) 30%,transparent);box-shadow:var(--shadow);transform-origin:50% 0;animation:trayIn .4s var(--spring) both}
+.tray button{padding:16px 6px;border-radius:15px;background:var(--surface);font-weight:700;font-size:17px;box-shadow:0 1px 2px rgba(0,0,0,.06);transition:transform .3s var(--spring)}
+.tray button:active{transform:scale(.94);transition-duration:.08s}
+.tray .more{font-weight:600;font-size:14px;color:var(--muted);padding:16px 10px;background:transparent;box-shadow:none}
+@keyframes trayIn{from{opacity:0;transform:translateY(-10px) scale(.96)}}
+[data-theme="red"] .tray{background:var(--surface);border-color:var(--line);box-shadow:none}
+/* Time ruler */
+.ruler{-webkit-user-select:none;user-select:none;outline:none}
+.ruler:focus-visible .ruler-win{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+.ruler-read{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.rv{flex:1;text-align:center}.rv b{display:block;font-family:var(--display);font-size:22px;font-weight:600;line-height:1.15}.rv span{font-size:13px;color:var(--muted)}
+.rn{width:40px;height:40px;border-radius:12px;background:var(--surface2);font-size:20px;font-weight:700;flex:none;transition:transform .3s var(--spring)}.rn:active{transform:scale(.9)}.rn:disabled{opacity:.35}
+.ruler-win{position:relative;height:60px;overflow:hidden;border-radius:14px;background:var(--surface);border:1px solid var(--line);touch-action:pan-y;cursor:grab;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+.ruler-win:active{cursor:grabbing}
+.ruler-track{position:absolute;top:0;bottom:0;right:50%;will-change:transform}
+.ruler .tk{position:absolute;bottom:0;width:1.5px;height:12px;background:var(--muted);opacity:.45;transform:translateX(50%)}
+.ruler .tk.mj{height:22px;opacity:.8}.ruler .tk.now{height:28px;background:var(--accent);opacity:1}
+.ruler .tk span{position:absolute;bottom:27px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
+.ruler .tk.now span{color:var(--accent);font-weight:700;bottom:31px}
+.ruler-mark{position:absolute;top:8px;bottom:0;left:50%;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--accent);box-shadow:0 0 10px color-mix(in srgb,var(--accent) 50%,transparent)}
+.rx{margin:6px 0 0;font-size:13px}.rx-in{margin-top:4px}
+[data-theme="red"] .ruler-mark{box-shadow:none}
+/* Pull down on Today to sync */
+#ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 50px);width:38px;height:38px;margin-top:-38px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);display:grid;place-items:center;opacity:0;transform:translate(-50%,0);transition:transform .35s var(--spring),opacity .25s,background .2s,color .2s;z-index:4;pointer-events:none;color:var(--accent)}
+#ptr svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+#ptr.armed{color:var(--on);background:var(--accent)}#ptr.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Order of quick buttons */
+.set-sub{margin:4px 2px 8px;font-size:13px;color:var(--muted);font-weight:600}
+.ord{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.ord-row{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}
+.ord-row svg{width:22px;height:22px;color:var(--c);flex:none}.ord-row span{flex:1;font-weight:600;font-size:15px}.ord-row .rn{width:36px;height:36px;font-size:17px}
+/* Fewer borders: in light themes cards are lifted by their shadow alone. */
+:root:not([data-theme="dark"]):not([data-theme="red"]) :is(.since div,.totals,.list,.chart,.vit,.wk,.ck,.nudge,.syncbox,.feats,.ob-list li){border-color:transparent}
+@media (prefers-reduced-motion:reduce){.ring .sl,.tline,.chk path,.tchk path{stroke-dasharray:none!important;stroke-dashoffset:0!important}}
+html,body{overscroll-behavior-x:none}
+[hidden]{display:none!important}
+.ruler .tk{font-style:normal}
+.ruler-mark{top:auto;height:30px}

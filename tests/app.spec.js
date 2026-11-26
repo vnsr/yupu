@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { sampleState, openApp, H } = require('./helpers');
+const { sampleState, openApp, tabTo, H } = require('./helpers');
 
 test('first run walks through four steps and saves the profile and what to track', async ({ page }) => {
   const errors = await openApp(page);
@@ -72,7 +72,7 @@ test('holding Left starts nursing earlier on that side', async ({ page }) => {
 
 test('swiping a row left deletes it, Undo brings it back', async ({ page, context }) => {
   await openApp(page, sampleState());
-  await page.click('[data-tab="history"]');
+  await tabTo(page, 'history');
   const before = await page.evaluate(() => live().length);
   const r = await page.locator('#main .list .row').first().boundingBox();
   const cdp = await context.newCDPSession(page);
@@ -88,7 +88,7 @@ test('swiping a row left deletes it, Undo brings it back', async ({ page, contex
 
 test('a short vertical drag on a row does not delete it', async ({ page, context }) => {
   await openApp(page, sampleState());
-  await page.click('[data-tab="history"]');
+  await tabTo(page, 'history');
   const before = await page.evaluate(() => live().length);
   const r = await page.locator('#main .list .row').first().boundingBox();
   const cdp = await context.newCDPSession(page);
