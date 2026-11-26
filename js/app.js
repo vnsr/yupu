@@ -1,15 +1,39 @@
 'use strict';
 const KEY = 'yupu-data-v1';
 const ALLERGENS = ['Egg','Peanut',"Cow's milk",'Wheat','Soy','Fish','Tree nuts','Sesame','Shellfish'];
-const LABEL = {nurse:'Nursing',bottle:'Bottle',sleep:'Sleep',diaper:'Diaper',solids:'Solids',growth:'Measurement',other:'Other'};
-const COLOR = {nurse:'feed',bottle:'feed',sleep:'sleep',diaper:'diaper',solids:'solids',growth:'growth',other:'other'};
+const LABEL = {nurse:'Nursing',bottle:'Bottle',pump:'Pumping',sleep:'Sleep',diaper:'Diaper',solids:'Solids',med:'Medication',growth:'Measurement',other:'Other'};
+const COLOR = {nurse:'feed',bottle:'feed',pump:'pump',sleep:'sleep',diaper:'diaper',solids:'solids',med:'med',growth:'growth',other:'other'};
 const REACT = {loved:'Loved it',ok:'OK',refused:'Refused'};
 const DKIND = {wet:'Wet',dirty:'Dirty',both:'Wet and dirty',dry:'Dry'};
+/* Stool details on dirty diapers (3.3). Keys are stored; labels are shown. Pale, red and black
+   (after the first week, when black is no longer meconium) and blood are flagged like a fever
+   reading, the same colours the stool-colour card in the yellow U-Heft asks parents to watch. */
+const STOOL = {yellow:['Yellow','#E9C43F'],mustard:['Mustard','#C9962A'],orange:['Orange','#E08A3C'],green:['Green','#8DAA4C'],dkgreen:['Dark green','#4F6B35'],
+  brown:['Brown','#8A5A35'],black:['Black','#2B2522'],red:['Red','#C8372D'],pale:['Pale, white or grey','#E3DECF']};
+const STOOL_SHORT = {yellow:'yellow',mustard:'mustard',orange:'orange',green:'green',dkgreen:'dark green',brown:'brown',black:'black',red:'red',pale:'pale'};
+const CONS = {watery:'Watery',loose:'Loose',seedy:'Seedy, grainy',soft:'Soft, pasty',formed:'Formed',hard:'Hard, pellets'};
+const CONS_SHORT = {watery:'watery',loose:'loose',seedy:'seedy',soft:'soft',formed:'formed',hard:'hard'};
+const AMT = {s:'Small',m:'Medium',l:'Large',blow:'Blowout'};
+const SX = {mucus:'Mucus',blood:'Blood streaks',food:'Undigested food'};
+/* Medication (3.3): its own entry instead of an Other entry labelled "Medication: …". */
+const MED_UNITS = ['ml','mg','drops','tablet','puff'];
+const MED_FORM = {oral:'By mouth',supp:'Suppository',drops:'Eye, ear or nose drops',skin:'On the skin',inhaled:'Inhaled'};
+const MED_COMMON = ['Paracetamol','Ibuprofen','Vitamin D','Fluoride','Simethicone'];
+const MED_REASONS = ['Fever','Pain','Teething','Cold','Tummy'];
+/* Features each phone can turn off. Off hides buttons, tabs, filters, charts and summary
+   sections; it never deletes entries, which stay in History → All and in search. */
+const FEATS = [['nurse','Breastfeeding','Left and Right timers'],['bottle','Bottle',''],['pump','Pumping',''],['sleep','Sleep',''],['diaper','Diapers',''],
+  ['solids','Solids and foods','Foods tab and allergens'],['med','Medication',''],['daily','Daily medicine card','e.g. Vitamin D, once a day'],['temp','Temperature','fields and chart'],
+  ['growth','Growth','WHO curves tab'],['checks','U-checks and vaccines','Checks tab'],['insights','Insights','nap hint, week comparison, longest night stretch']];
+/* Themes: each has a light and a dark version (OLED black is always dark). Colours live in
+   css/app.css under [data-pal]; these are only for the picker's names. */
+const PALS = [['calm','Calm'],['blossom','Blossom'],['sage','Sage'],['ocean','Ocean'],['latte','Latte'],['lavender','Lavender'],['oled','OLED black']];
 
 /* ---------- icons ---------- */
 const ic = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const I = {
   checks: ic('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 13l2 2 4-4"/>'),
+  pump: ic('<path d="M6.5 3h11l-2 5.5h-7z"/><path d="M12 8.5v3"/><path d="M9 11.5h6v8.5a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/><path d="M9 16h6"/>'),
   pill: ic('<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>'),
   note: ic('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>'),
   drop: ic('<path d="M12 3c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11z"/>'),
@@ -26,8 +50,11 @@ const I = {
 };
 
 /* ---------- state ---------- */
-function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',textSize:'m',night:false,nightAuto:false,nightFrom:'21:00',nightTo:'07:00',nightSkipUntil:0,lang:'en',syncFolder:'',remind:false,updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0,activeUpd:{nurse:0,sleep:0},sync:{repo:'',token:'',on:false,shas:{},dirty:{},last:0,err:''}};}
-function hydrate(d){const b=blank();return {...b,...d,settings:{...b.settings,...d.settings},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},sync:{...b.sync,...(d.sync||{})},activeUpd:{...b.activeUpd,...(d.activeUpd||{})},events:Array.isArray(d.events)?d.events:[]};}
+const defFeatures=()=>({nurse:true,bottle:true,pump:false,sleep:true,diaper:true,solids:true,med:true,daily:true,temp:true,growth:true,checks:true,insights:true});
+function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',palette:'calm',textSize:'m',night:false,nightAuto:false,nightFrom:'21:00',nightTo:'07:00',nightSkipUntil:0,lang:'en',syncFolder:'',remind:false,features:defFeatures(),stool:'auto',daily:['Vitamin D'],updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0,activeUpd:{nurse:0,sleep:0},sync:{repo:'',token:'',on:false,shas:{},dirty:{},last:0,err:''}};}
+function hydrate(d){const b=blank(),ds=d.settings||{};return {...b,...d,settings:{...b.settings,...ds,features:{...b.settings.features,...(ds.features||{})},daily:Array.isArray(ds.daily)?ds.daily:b.settings.daily},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},sync:{...b.sync,...(d.sync||{})},activeUpd:{...b.activeUpd,...(d.activeUpd||{})},events:Array.isArray(d.events)?d.events:[]};}
+const feat=k=>!S||!S.settings||!S.settings.features||S.settings.features[k]!==false;
+const feedsOn=()=>feat('nurse')||feat('bottle');
 function loadLS(key=KEY){try{const raw=localStorage.getItem(key);if(raw)return hydrate(JSON.parse(raw));}catch(e){}return null;}
 /* Storage: IndexedDB database "yupu", store "kv", key "state", on this phone only.
    Versions before 3.1 kept everything in localStorage. On the first start of 3.1 that copy
@@ -147,8 +174,10 @@ function upsert(e){
   const i=S.events.findIndex(x=>x.id===e.id);
   if(i>=0){
     const old=S.events[i];
-    if(!old.deleted&&(old.start!==e.start||old.end!==e.end||JSON.stringify(old.data)!==JSON.stringify(e.data))){
-      e.hist=[...(old.hist||[]),{at:old.updatedAt||now,by:old.editBy||old.by||'',start:old.start,end:old.end,data:old.data}].slice(-5);
+    if(!old.deleted&&(old.type!==e.type||old.start!==e.start||old.end!==e.end||JSON.stringify(old.data)!==JSON.stringify(e.data))){
+      // Each version keeps its type, so a version from before a type change (3.3 moved
+      // medication and pumping out of Other) restores as what it was.
+      e.hist=[...(old.hist||[]).map(h=>h.type?h:{...h,type:old.type}),{at:old.updatedAt||now,by:old.editBy||old.by||'',type:old.type,start:old.start,end:old.end,data:old.data}].slice(-5);
       e.editBy=me;
     }
     e.created=old.created||e.created||old.updatedAt||now;
@@ -172,10 +201,17 @@ function describe(e){
       return {title:'Nursing',detail:[t+(d.last?`${t?', ':''}ended ${d.last==='l'?'left':'right'}`:''),d.note].filter(Boolean).join(', '),right:dur(((d.l||0)+(d.r||0))*1000)};}
     case 'bottle': return {title:'Bottle',detail:[d.kind==='formula'?'Formula':'Breast milk',d.note].filter(Boolean).join(', '),right:`${d.ml} ml`};
     case 'sleep': return {title:'Sleep',detail:[`${hm(e.start)} to ${hm(e.end)}`,d.note].filter(Boolean).join(', '),right:dur(e.end-e.start)};
-    case 'diaper':{const p=[];if(DKIND[d.kind])p.push(DKIND[d.kind]);if(d.temp)p.push(`${fmtNum(d.temp)}°C`);if(d.note)p.push(d.note);
-      return {title:'Diaper',detail:p.join(', '),right:'',flag:d.temp>=38};}
+    case 'diaper':{const p=[],st=stoolText(d);
+      let k=DKIND[d.kind]||'';if(st)k=k?`${k} · ${st}`:st;if(k)p.push(k);
+      if(d.rash)p.push('nappy rash');if(d.temp)p.push(`${fmtNum(d.temp)}°C`);if(d.note)p.push(d.note);
+      return {title:'Diaper',detail:p.join(', '),right:'',flag:d.temp>=38||stoolFlag(e),sw:hasStool(d)&&STOOL[d.color]?STOOL[d.color][1]:''};}
     case 'other':{const p=[];if(d.temp)p.push(`${fmtNum(d.temp)}°C`);if(d.note)p.push(d.note);
       return {title:d.label||'Other',detail:p.join(', '),right:'',flag:d.temp>=38};}
+    case 'med':{const p=[],ds=doseText(d);if(ds)p.push(ds);if(MED_FORM[d.form])p.push(MED_FORM[d.form].toLowerCase());if(d.reason)p.push(d.reason.toLowerCase());
+      if(d.temp)p.push(`${fmtNum(d.temp)}°C`);if(d.note)p.push(d.note);
+      return {title:d.name||'Medication',detail:p.join(', '),right:'',flag:d.temp>=38};}
+    case 'pump':{const p=[];if(d.l)p.push(`left ${d.l} ml`);if(d.r)p.push(`right ${d.r} ml`);if(d.min)p.push(`${d.min} min`);if(d.note)p.push(d.note);
+      return {title:'Pumping',detail:p.join(', '),right:d.ml?`${d.ml} ml`:''};}
     case 'solids':{const p=[];if(d.amount)p.push(`${fmtNum(d.amount)} ${d.unit}`);if(d.reaction)p.push(REACT[d.reaction]);if(d.allergens&&d.allergens.length)p.push(d.allergens.join(', '));if(d.symptoms)p.push('reaction noted');if(d.note)p.push(d.note);
       return {title:d.food||'Solids',detail:p.join(', '),right:'',flag:!!d.symptoms};}
     case 'growth':{const p=[];if(d.kg)p.push(`${fmtNum(d.kg)} kg`);if(d.cm)p.push(`${fmtNum(d.cm)} cm`);if(d.head)p.push(`head ${fmtNum(d.head)} cm`);if(d.note)p.push(d.note);
@@ -183,8 +219,65 @@ function describe(e){
   }
   return {title:e.type,detail:'',right:''};
 }
+/* ---------- stool, medication and pumping helpers ---------- */
+const hasStool=d=>d&&(d.kind==='dirty'||d.kind==='both');
+function stoolText(d){
+  if(!hasStool(d))return '';const p=[];
+  if(STOOL_SHORT[d.color])p.push(STOOL_SHORT[d.color]);if(CONS_SHORT[d.cons])p.push(CONS_SHORT[d.cons]);if(AMT[d.amt])p.push(AMT[d.amt].toLowerCase());
+  (d.x||[]).forEach(k=>{if(SX[k])p.push(SX[k].toLowerCase());});
+  return p.join(', ');
+}
+function stoolFlag(e){
+  const d=e&&e.data;if(!hasStool(d))return false;
+  if(d.color==='pale'||d.color==='red'||(d.x||[]).includes('blood'))return true;
+  if(d.color==='black'){const dob=dobTs();return !(dob>0)||daysBetween(dob,e.start)>7;}
+  return false;
+}
+const doseText=d=>d&&d.dose?`${fmtNum(d.dose)} ${d.unit||''}`.trim():'';
+// Medication from before 3.3 was an Other entry labelled "Medication: …" (or naming a common
+// medicine). Those still count everywhere, so entries from a phone that hasn't updated yet show up.
+function medName(e){
+  if(e.type==='med')return (e.data&&e.data.name||'').trim()||'Medication';
+  if(e.type!=='other')return null;const l=labelOf(e),m=/^(medication|medikament|medicine)\s*:?\s*(.*)$/i.exec(l);
+  if(m)return (m[2]||'').trim()||'Medication';
+  return /paracetamol|ibuprofen|nurofen|ben-u-ron|fiebersaft|zäpfchen|antibiotic|antibiotika|amoxi/i.test(l)?l:null;
+}
+const isMed=e=>!!medName(e);
+const isVit=e=>(e.type==='med'&&/vitamin/i.test(e.data&&e.data.name||''))||(e.type==='other'&&/vitamin/i.test((e.data.label||'')+' '+(e.data.note||'')));
+const sameMed=(e,name)=>{const n=String(name||'').trim().toLowerCase();if(!n)return false;if(/^vitamin\s*d$/.test(n))return isVit(e);const m=medName(e);return !!m&&m.toLowerCase()===n;};
+const lastMed=name=>live().find(e=>e.type==='med'&&sameMed(e,name));
+function parseDose(s){
+  const m=/^(.*?)[\s,:]+(\d+(?:[.,]\d+)?)\s*(ml|mg|drops?|tropfen|tablets?|tabletten?|puffs?|hübe?)\.?$/i.exec(String(s||'').trim());
+  if(!m||!m[1].trim())return {name:String(s||'').trim()};
+  const u=m[3].toLowerCase(),unit=/^ml/.test(u)?'ml':/^mg/.test(u)?'mg':/^(drop|tropf)/.test(u)?'drops':/^tablet/.test(u)?'tablet':'puff';
+  return {name:m[1].trim(),dose:num(m[2]),unit};
+}
+// Pumping from before 3.3 (and from Nara) was Other "Pumping" with the amounts in the note.
+function pumpFromNote(note){
+  const d={},rest=[];
+  String(note||'').split(/,\s*/).forEach(p=>{let m;
+    if((m=/^left (\d+) ml$/i.exec(p)))d.l=+m[1];else if((m=/^right (\d+) ml$/i.exec(p)))d.r=+m[1];
+    else if((m=/^(\d+) ml$/i.exec(p)))d.ml=+m[1];else if((m=/^(\d+) min$/i.exec(p)))d.min=+m[1];else if(p.trim())rest.push(p.trim());});
+  if(d.l||d.r)d.ml=(d.l||0)+(d.r||0);
+  if(rest.length)d.note=rest.join(', ');
+  return d;
+}
+/* First start of 3.3 (and every start after, for entries a phone still on 3.2 adds): Other
+   entries that are really medication or pumping become their own type. Each keeps its id,
+   and the version before is kept in its change history, so Earlier versions → Restore undoes it. */
+function migrateEntries(){
+  let n=0;
+  for(const e of S.events.slice()){
+    if(e.deleted||e.type!=='other'||e.keep)continue;const d=e.data||{},l=labelOf(e);
+    if(/^(pumping|abpumpen|pump)$/i.test(l)){upsert({...e,type:'pump',data:pumpFromNote(d.note)});n++;continue;}
+    const vit=/^vitamin/i.test(l),mn=vit?l:medName(e);
+    if(mn){const p=vit?{name:/^vitamin\s*d$/i.test(l)?'Vitamin D':l}:parseDose(mn),nd={...p,name:p.name||'Medication'};
+      if(d.temp!=null)nd.temp=d.temp;if(d.note)nd.note=d.note;upsert({...e,type:'med',data:nd});n++;}
+  }
+  return n;
+}
 function dayStats(ds,de,ev,now){
-  const r={feeds:0,nurseMin:0,ml:0,sleep:0,wet:0,dirty:0,solids:0};
+  const r={feeds:0,nurseMin:0,ml:0,sleep:0,wet:0,dirty:0,solids:0,pumpMl:0,pumps:0};
   for(const e of ev){
     if(e.type==='sleep'){const ov=Math.min(e.end,de)-Math.max(e.start,ds);if(ov>0)r.sleep+=ov;continue;}
     if(e.start<ds||e.start>=de) continue;
@@ -193,6 +286,7 @@ function dayStats(ds,de,ev,now){
     else if(e.type==='bottle'){r.feeds++;r.ml+=+d.ml||0;}
     else if(e.type==='diaper'){if(d.kind==='wet'||d.kind==='both')r.wet++;if(d.kind==='dirty'||d.kind==='both')r.dirty++;}
     else if(e.type==='solids') r.solids++;
+    else if(e.type==='pump'){r.pumps++;r.pumpMl+=+d.ml||0;}
   }
   if(S.active.sleep){const ov=Math.min(now,de)-Math.max(S.active.sleep.start,ds);if(ov>0)r.sleep+=ov;}
   return r;
@@ -233,8 +327,11 @@ const TABS=[['today','Today',I.today],['history','History',I.list],['trends','Tr
 // animations survive the minute refresh and actions that change nothing on screen.
 const painted={tabs:'',main:''};
 function paint(el,key,html){const k=S.settings.lang+'|'+html;if(painted[key]===k)return;painted[key]=k;el.innerHTML=html;translateDom(el);}
+const TAB_FEAT={growth:'growth',checks:'checks',foods:'solids'};
+const tabsOn=()=>TABS.filter(([k])=>!TAB_FEAT[k]||feat(TAB_FEAT[k]));
 function render(){
-  paint($('#tabs'),'tabs',TABS.map(([k,l,svg])=>`<button class="tab ${k===tab?'on':''}" data-act="tab" data-tab="${k}" aria-label="${l}"${k===tab?' aria-current="page"':''}>${svg}<span>${l}</span></button>`).join(''));
+  if(!tabsOn().some(([k])=>k===tab))tab='today';
+  paint($('#tabs'),'tabs',tabsOn().map(([k,l,svg])=>`<button class="tab ${k===tab?'on':''}" data-act="tab" data-tab="${k}" aria-label="${l}"${k===tab?' aria-current="page"':''}>${svg}<span>${l}</span></button>`).join(''));
   $('#hdrName').textContent=S.settings.name||'Yupu baby';
   $('#hdrSub').textContent=ageText()||'Baby log';
   paint($('#main'),'main',({today:vToday,history:vHistory,trends:vTrends,growth:vGrowth,checks:vChecks,foods:vFoods})[tab]());
@@ -256,7 +353,8 @@ function tick(){
 function row(e){
   const d=describe(e),me=S.settings.device||'';
   const by=e.by&&e.by!==me?`<span class="by">${esc(e.by)}</span>`:'';
-  return `<li><button class="row c-${COLOR[e.type]}" data-act="edit" data-id="${e.id}"><time>${e.type==='growth'?'':hm(e.start)}</time><i class="dot"></i><span class="rt"><b>${esc(d.title)}${by}</b><small class="${d.flag?'flag':''}">${esc(d.detail)}</small></span><span class="rd">${esc(d.right)}</span></button></li>`;
+  const sw=d.sw?`<i class="sw" style="--sw:${d.sw}" aria-hidden="true"></i>`:'';
+  return `<li><button class="row c-${COLOR[e.type]||'other'}" data-act="edit" data-id="${e.id}"><time>${e.type==='growth'?'':hm(e.start)}</time><i class="dot"></i><span class="rt"><b>${esc(d.title)}${by}</b><small class="${d.flag?'flag':''}">${sw}${esc(d.detail)}</small></span><span class="rd">${esc(d.right)}</span></button></li>`;
 }
 
 /* Forgotten-timer guard: a sleep over 14 h or a feed over 90 min asks whether it is still going. */
@@ -280,17 +378,33 @@ function endTimerAt(kind,end){
   const l=Math.round(sideMs(a,'l',end)/1000),r=Math.round(sideMs(a,'r',end)/1000);
   const e={id:a.id||uid(),type:'nurse',start:a.start,end,data:{l,r,last:lastSide(a)}};upsert(e);render();toast(`Nursing saved, ${dur((l+r)*1000)}`,()=>removeEv(e.id));return true;
 }
-/* Time since the last dose of each medication logged in the last 48 h. Times only, no advice. */
-function medName(e){
-  if(e.type!=='other')return null;const l=labelOf(e),m=/^(medication|medikament|medicine)\s*:?\s*(.*)$/i.exec(l);
-  if(m)return (m[2]||'').trim()||'Medication';
-  return /paracetamol|ibuprofen|nurofen|ben-u-ron|fiebersaft|zäpfchen|antibiotic|antibiotika|amoxi/i.test(l)?l:null;
-}
+/* Time since the last dose of each medication logged in the last 48 h, and how many doses in
+   the last 24 h. Times and counts only, no dosing advice. Daily medicines have their own card. */
+const dailyNames=()=>(S.settings.daily||[]).filter(Boolean);
+const isDailyName=name=>dailyNames().some(x=>x.toLowerCase()===String(name||'').trim().toLowerCase()||(/^vitamin\s*d$/i.test(x)&&/vitamin/i.test(name||'')));
 function medsCard(ev,n){
   const m=new Map();
-  ev.forEach(e=>{if(n-e.start>48*36e5||e.start>n+6e4)return;const name=medName(e);if(!name)return;const k=name.toLowerCase();if(!m.has(k))m.set(k,{name,e});});
+  ev.forEach(e=>{if(n-e.start>48*36e5||e.start>n+6e4)return;const name=medName(e);if(!name||(feat('daily')&&isDailyName(name)))return;const k=name.toLowerCase();
+    if(!m.has(k))m.set(k,{name,e,c:0});if(n-e.start<=24*36e5)m.get(k).c++;});
   if(!m.size)return '';
-  return `<div class="meds">${[...m.values()].map(({name,e})=>`<div class="med"><button data-act="edit" data-id="${e.id}"><b>${esc(name)}</b><span>at ${hm(e.start)}, <span data-since="${e.start}"></span> ago</span></button><button class="btn small" data-act="med-again" data-id="${e.id}">Log again</button></div>`).join('')}</div>`;
+  return `<div class="meds">${[...m.values()].map(({name,e,c})=>{const ds=e.type==='med'?doseText(e.data):'';
+    return `<div class="med c-med"><button data-act="edit" data-id="${e.id}"><b>${esc(name)}${ds?` <small>${esc(ds)}</small>`:''}</b><span>at ${hm(e.start)}, <span data-since="${e.start}"></span> ago${c>1?` · ${c} doses in 24 h`:''}</span></button><button class="btn small" data-act="med-again" data-id="${e.id}">Log again</button></div>`;}).join('')}</div>`;
+}
+// One card per daily medicine: Given today / Give. Vitamin D is the default.
+function dailyCards(ev,n){
+  if(!feat('daily'))return '';const t0=dayStart(n);
+  return dailyNames().map(name=>{
+    const g=ev.find(e=>e.start>=t0&&e.start<=n+6e4&&sameMed(e,name));
+    return g?`<button class="vit done" data-act="edit" data-id="${g.id}">${I.pill}<span><b>${esc(name)}</b><small>Given today at ${hm(g.start)}</small></span><i>Done ✓</i></button>`
+      :`<button class="vit" data-act="daily" data-name="${esc(name)}">${I.pill}<span><b>${esc(name)}</b><small>Not given yet today</small></span><i>Give</i></button>`;
+  }).join('');
+}
+// A new medication entry repeating the last dose of that medicine (name, dose, unit, form).
+function medRepeat(name,from){
+  const o=from&&from.type==='med'?from:lastMed(name),d={name:String(name||'').trim()||'Medication'};
+  if(o){['dose','unit','form','reason'].forEach(k=>{if(o.data[k]!=null&&o.data[k]!=='')d[k]=o.data[k];});}
+  if(/^vitamin\s*d$/i.test(d.name))delete d.reason;
+  return {id:uid(),type:'med',start:Date.now(),data:d};
 }
 /* Insights from her own log: patterns only, no advice. */
 const atHour=(day,h)=>{const d=new Date(day);d.setHours(h,0,0,0);return d.getTime();};
@@ -325,6 +439,19 @@ function weekCard(ev,n){
   return `<button class="vit week" data-act="tab" data-tab="trends">${I.bars}<span><b>Your week</b><small>Sleep ${dur(w.A.sleep)} a day${cmp?` (${sgnDur(w.A.sleep-w.B.sleep)})`:''}${w.A.night?`, longest night stretch ${dur(w.A.night)} on average`:''}</small></span><i>Trends</i></button>`;
 }
 function otherPhone(x){return x&&x.by&&x.by!==(S.settings.device||'')?`<span class="by">${esc(x.by)}</span>`:'';}
+// Quick buttons on a 6-column grid: 3 per row (2 at the largest text size, 2×2 for four).
+// A short last row stretches to fill the width, a single leftover button becomes a wide bar.
+function actGrid(B){
+  const n=B.length,cols=n<=2?n:n===4||S.settings.textSize==='xl'?2:3,rest=n%cols,span=6/cols;
+  return `<div class="acts">${B.map((b,i)=>{const last=rest&&i>=n-rest,sp=last?6/rest:span;
+    return b.replace('<button class="act',`<button style="grid-column:span ${sp}" class="act${sp===6&&n>1?' wide':''}`);}).join('')}</div>`;
+}
+// Solids start switched off for a young baby; around 5 months, one card offers to turn them on.
+function solidsNudge(){
+  if(feat('solids')||S.prefs.solidsAsked||!S.settings.dob)return '';
+  const days=daysBetween(dobTs(),Date.now());if(!(days>=150))return '';
+  return `<div class="nudge c-solids"><span>Starting solids? Turn on Solids to log foods, first tries and allergens.</span><button class="btn small primary" data-act="solids-on">Turn on</button><button class="btn small" data-act="solids-later">Not now</button></div>`;
+}
 function vToday(){
   const n=Date.now(),ev=live(),a=S.active;let h='';
   if(!S.settings.dob) h+=`<div class="nudge"><span>Add your baby's name and birthday to see age and growth curves.</span><button class="btn small primary" data-act="settings">Set up</button></div>`;
@@ -349,33 +476,43 @@ function vToday(){
   const night=nightActive(),lastN=ev.find(e=>e.type==='nurse'),ls2=lastN&&lastN.data.last;
   const liveSide=a.nurse&&curSide(a.nurse);
   const sideBtn=(s,label)=>`<button class="act c-feed ${liveSide===s?'live':''}" data-act="nurse-side" data-side="${s}">${I.drop}<span>${label}</span>${!a.nurse&&ls2===s?'<small>last</small>':''}</button>`;
-  const acts=`<div class="acts">${sideBtn('l','Left')}${sideBtn('r','Right')}
-    <button class="act c-feed" data-act="new" data-type="bottle">${I.bottle}<span>Bottle</span></button>
-    ${a.sleep?`<button class="act c-sleep live" data-act="sleep-stop">${I.sun}<span>Woke up</span></button>`:`<button class="act c-sleep" data-act="sleep-start">${I.moon}<span>Sleep</span></button>`}
-    <button class="act c-diaper" data-act="new" data-type="diaper">${I.diaper}<span>Diaper</span></button>
-    <button class="act c-solids" data-act="new" data-type="solids">${I.spoon}<span>Solids</span></button></div>${S.prefs.held||a.nurse||a.sleep?'':'<p class="tip">Started a moment ago? Hold Left, Right or Sleep to set when.</p>'}`;
+  const B=[];
+  if(feat('nurse'))B.push(sideBtn('l','Left'),sideBtn('r','Right'));
+  if(feat('bottle'))B.push(`<button class="act c-feed" data-act="new" data-type="bottle">${I.bottle}<span>Bottle</span></button>`);
+  if(feat('sleep')||a.sleep)B.push(a.sleep?`<button class="act c-sleep live" data-act="sleep-stop">${I.sun}<span>Woke up</span></button>`:`<button class="act c-sleep" data-act="sleep-start">${I.moon}<span>Sleep</span></button>`);
+  if(feat('diaper'))B.push(`<button class="act c-diaper" data-act="new" data-type="diaper">${I.diaper}<span>Diaper</span></button>`);
+  if(feat('solids'))B.push(`<button class="act c-solids" data-act="new" data-type="solids">${I.spoon}<span>Solids</span></button>`);
+  if(feat('pump'))B.push(`<button class="act c-pump" data-act="new" data-type="pump">${I.pump}<span>Pump</span></button>`);
+  if(feat('med'))B.push(`<button class="act c-med" data-act="new" data-type="med">${I.pill}<span>Medicine</span></button>`);
+  const holdWhat=feat('nurse')&&feat('sleep')?'Left, Right or Sleep':feat('nurse')?'Left or Right':'Sleep';
+  const holdTip=!S.prefs.held&&!a.nurse&&!a.sleep&&(feat('nurse')||feat('sleep'))?`<p class="tip">Started a moment ago? Hold ${holdWhat} to set when.</p>`:'';
+  const acts=B.length?actGrid(B)+holdTip:`<div class="nudge"><span>Everything is switched off. Choose what you track in Settings.</span><button class="btn small" data-act="settings">Settings</button></div>`;
   if(night) h+=acts;
   h+=`<div class="ring-wrap">${ring(ev,n)}</div>`;
-  h+=`<div class="legend"><span class="c-sleep"><i></i>Sleep</span><span class="c-feed"><i></i>Feeds</span><span class="c-diaper"><i></i>Diapers</span><span class="c-solids"><i></i>Solids</span></div>`;
-  const ls=ev.find(e=>e.type==='sleep'),ld=ev.find(e=>e.type==='diaper');
-  const nh=!a.sleep&&ls?napHint(ev,n):null,nhH=nh&&new Date(n).getHours()>=7&&new Date(n).getHours()<19?`<small class="hint">usually naps after about ${dur(nh.median)}, around ${hm(ls.end+nh.median)}</small>`:'';
+  const lg=[];if(feat('sleep'))lg.push('<span class="c-sleep"><i></i>Sleep</span>');if(feedsOn())lg.push('<span class="c-feed"><i></i>Feeds</span>');if(feat('diaper'))lg.push('<span class="c-diaper"><i></i>Diapers</span>');if(feat('solids'))lg.push('<span class="c-solids"><i></i>Solids</span>');
+  if(lg.length)h+=`<div class="legend">${lg.join('')}</div>`;
+  const ls=ev.find(e=>e.type==='sleep'),ld=ev.find(e=>e.type==='diaper'),lds=ev.find(e=>e.type==='diaper'&&hasStool(e.data));
+  const nh=feat('insights')&&!a.sleep&&ls?napHint(ev,n):null,nhH=nh&&new Date(n).getHours()>=7&&new Date(n).getHours()<19?`<small class="hint">usually naps after about ${dur(nh.median)}, around ${hm(ls.end+nh.median)}</small>`:'';
   const sleepBox=a.sleep?`<b data-since="${a.sleep.start}"></b><span>asleep since ${hm(a.sleep.start)}</span>`:ls?`<b data-since="${ls.end}"></b><span>awake since ${hm(ls.end)}</span>${nhH}`:`<b>–</b><span>no sleep logged</span>`;
-  const dBox=ld?`<b data-since="${ld.start}"></b><span>since diaper, ${hm(ld.start)}</span>`:`<b>–</b><span>no diaper logged</span>`;
-  h+=`<div class="since"><div class="c-sleep">${sleepBox}</div><div class="c-diaper">${dBox}</div></div>`;
+  const dirtyH=lds&&lds!==ld?`<small class="hint">last dirty <span data-since="${lds.start}"></span> ago</small>`:'';
+  const dBox=ld?`<b data-since="${ld.start}"></b><span>since diaper, ${hm(ld.start)}</span>${dirtyH}`:`<b>–</b><span>no diaper logged</span>`;
+  const bx=[];if(feat('sleep')||a.sleep)bx.push(`<div class="c-sleep">${sleepBox}</div>`);if(feat('diaper'))bx.push(`<div class="c-diaper">${dBox}</div>`);
+  if(bx.length)h+=`<div class="since${bx.length===1?' one':''}">${bx.join('')}</div>`;
   if(!night) h+=acts;
-  const vit=ev.find(e=>isVit(e)&&e.start>=dayStart(n));
-  h+=vit?`<button class="vit done" data-act="edit" data-id="${vit.id}">${I.pill}<span><b>Vitamin D</b><small>Given today at ${hm(vit.start)}</small></span><i>Done ✓</i></button>`
-       :`<button class="vit" data-act="vit">${I.pill}<span><b>Vitamin D</b><small>Not given yet today</small></span><i>Give</i></button>`;
-  h+=medsCard(ev,n);
-  h+=checksNudge();
-  if(new Date(n).getDay()===0)h+=weekCard(ev,n);
-  const ds=dayStart(n),st=dayStats(ds,addDays(ds,1),ev,n),ns=nightStretch(ds,ev,n);
+  h+=dailyCards(ev,n);
+  if(feat('med'))h+=medsCard(ev,n);
+  h+=solidsNudge();
+  if(feat('checks'))h+=checksNudge();
+  if(feat('insights')&&new Date(n).getDay()===0)h+=weekCard(ev,n);
+  const ds=dayStart(n),st=dayStats(ds,addDays(ds,1),ev,n),ns=feat('insights')&&feat('sleep')?nightStretch(ds,ev,n):null;
   const fx=[];if(st.nurseMin)fx.push(`${Math.round(st.nurseMin)} min nursing`);if(st.ml)fx.push(`${st.ml} ml bottle`);
-  h+=`<h2 class="sec">Today so far</h2><div class="totals">
-    <div><b>${st.feeds}</b><span>${st.feeds===1?'feed':'feeds'}${fx.length?', '+fx.join(', '):''}</span></div>
-    <div><b>${dur(st.sleep)}</b><span>sleep</span></div>
-    <div><b>${st.wet}</b><span>wet diapers</span></div>
-    <div><b>${st.dirty}</b><span>dirty diapers${st.solids?`, ${st.solids} solids`:''}</span></div>
+  const T=[];
+  if(feedsOn())T.push(`<b>${st.feeds}</b><span>${st.feeds===1?'feed':'feeds'}${fx.length?', '+fx.join(', '):''}</span>`);
+  if(feat('sleep'))T.push(`<b>${dur(st.sleep)}</b><span>sleep</span>`);
+  if(feat('diaper'))T.push(`<b>${st.wet}</b><span>wet diapers</span>`,`<b>${st.dirty}</b><span>dirty diapers${st.solids&&feat('solids')?`, ${st.solids} solids`:''}</span>`);
+  else if(feat('solids'))T.push(`<b>${st.solids}</b><span>solids</span>`);
+  if(feat('pump'))T.push(`<b>${st.pumpMl} ml</b><span>pumped${st.pumps?`, ${st.pumps} ${st.pumps===1?'session':'sessions'}`:''}</span>`);
+  if(T.length)h+=`<h2 class="sec">Today so far</h2><div class="totals">${T.map((x,i)=>`<div${i===T.length-1&&T.length%2?' class="wide"':''}>${x}</div>`).join('')}
     ${ns?`<div class="wide"><b>${dur(ns.dur)}</b><span>longest stretch last night, ${hm(ns.start)}–${ns.ongoing?'now':hm(ns.end)}</span></div>`:''}</div>`;
   const recent=ev.slice(0,5);
   if(recent.length) h+=`<h2 class="sec">Latest</h2><ul class="list">${recent.map(row).join('')}</ul>`;
@@ -427,12 +564,15 @@ function ring(ev,n){
   }]));
   const an=ang(n),[hx0,hy0]=pt(112,an),[hx1,hy1]=pt(144,an);
   s+=`<line class="hand" x1="${f(hx0)}" y1="${f(hy0)}" x2="${f(hx1)}" y2="${f(hy1)}"/><circle class="handc" cx="${f(hx1)}" cy="${f(hy1)}" r="3.5"/>`;
-  const lf=ev.find(isFeed);
+  // The middle shows time since the last feed; with feeds switched off it shows sleep instead.
+  const lf=feedsOn()||S.active.nurse?ev.find(isFeed):null,ls=!feedsOn()&&feat('sleep')?ev.find(e=>e.type==='sleep'):null;
   let top='',big='',bot='',bigAttr='';
   if(S.active.nurse){top='Nursing now';bigAttr='data-tick="nt"';big='00:00';bot=curSide(S.active.nurse)?(curSide(S.active.nurse)==='l'?'on the left':'on the right'):'paused';}
   else if(lf){top='since last feed';bigAttr=`data-since="${lf.start}"`;
     bot=lf.type==='nurse'?`${hm(lf.start)}, ended ${lf.data.last==='r'?'right':'left'}`:`${hm(lf.start)}, ${lf.data.ml} ml bottle`;}
-  else {top='';big='Hello';bot='Log a feed below';}
+  else if(!feedsOn()&&S.active.sleep){top='asleep for';bigAttr=`data-since="${S.active.sleep.start}"`;bot=`since ${hm(S.active.sleep.start)}`;}
+  else if(ls){top='awake for';bigAttr=`data-since="${ls.end}"`;bot=`since ${hm(ls.end)}`;}
+  else {top='';big='Hello';bot=feedsOn()?'Log a feed below':'Log below';}
   s+=`<text class="sm" x="${C}" y="${C-28}">${esc(top)}</text><text class="big" x="${C}" y="${C+12}" ${bigAttr}>${esc(big)}</text><text class="sm" x="${C}" y="${C+36}">${esc(bot)}</text>`;
   return s+'</svg>';
 }
@@ -448,19 +588,20 @@ const ART={
 };
 const empty=(art,msg,btn='')=>`<div class="empty"><svg class="art" viewBox="0 0 100 100" aria-hidden="true">${ART[art]}</svg><p>${msg}</p>${btn}</div>`;
 function vHistory(){
-  const F=[['all','All'],['feeds','Feeds'],['sleep','Sleep'],['diaper','Diapers'],['solids','Solids'],['growth','Growth'],['other','Other']];
+  const F=[['all','All'],['feeds','Feeds',feedsOn()],['pump','Pumping',feat('pump')],['sleep','Sleep',feat('sleep')],['diaper','Diapers',feat('diaper')],['solids','Solids',feat('solids')],['med','Medication',feat('med')],['growth','Growth',feat('growth')],['other','Other']].filter(x=>x[2]!==false);
+  if(!F.some(([k])=>k===histFilter))histFilter='all';
   let h=`<div class="bar"><div class="chips">${F.map(([k,l])=>`<button class="chip ${histFilter===k?'on':''}" data-act="hist-filter" data-v="${k}">${l}</button>`).join('')}</div><button class="btn small primary" data-act="add-any">Add</button></div>`;
   h+=`<div class="search"><input id="hist-q" type="search" value="${esc(histQ)}" placeholder="Search notes, foods, medication…" autocomplete="off" enterkeyhint="search"></div>`;
   return h+`<div id="hist-list">${histList()}</div>`;
 }
 // Search covers every entry, not just the days on screen: titles, details, labels, notes and who logged it.
 function histList(){
-  const grp=t=>isFeed({type:t})?'feeds':t,q=histQ.trim().toLowerCase();
-  const all=live(),ev=all.filter(e=>histFilter==='all'||grp(e.type)===histFilter);
+  const grp=e=>isFeed(e)?'feeds':isMed(e)?'med':e.type,q=histQ.trim().toLowerCase();
+  const all=live(),ev=all.filter(e=>histFilter==='all'||grp(e)===histFilter);
   if(!all.length) return empty('list','Nothing logged yet. Use Add to enter something from earlier, or start from Today.');
   let shown,h='';
   if(q){
-    const hay=e=>{const d=describe(e);return [d.title,d.detail,d.right,e.data&&e.data.label,e.data&&e.data.note,e.data&&e.data.food,e.by,LABEL[e.type]].filter(Boolean).join(' ').toLowerCase();};
+    const hay=e=>{const d=describe(e),x=e.data||{};return [d.title,d.detail,d.right,x.label,x.note,x.food,x.name,x.reason,e.by,LABEL[e.type],tr(d.title),tr(d.detail)].filter(Boolean).join(' ').toLowerCase();};
     const hits=ev.filter(e=>hay(e).includes(q));shown=hits.slice(0,200);
     h+=`<p class="muted" style="margin:8px 2px 0">${hits.length?`${hits.length} ${hits.length===1?'match':'matches'}${hits.length>200?', showing the latest 200':''}`:'No matches'}</p>`;
   } else {
@@ -471,7 +612,8 @@ function histList(){
   for(const e of shown){const k=dayStart(e.start);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(e);}
   for(const [k,list] of groups){
     const st=dayStats(k,addDays(k,1),all,Date.now());
-    h+=`<h3 class="day"><span>${dayLabel(k)}</span><small>${q?'':`${st.feeds} feeds, ${dur(st.sleep)} sleep, ${st.wet} wet, ${st.dirty} dirty`}</small></h3><ul class="list">${list.map(row).join('')}</ul>`;
+    const sum=[];if(feedsOn())sum.push(`${st.feeds} feeds`);if(feat('sleep'))sum.push(`${dur(st.sleep)} sleep`);if(feat('diaper'))sum.push(`${st.wet} wet`,`${st.dirty} dirty`);if(feat('pump')&&st.pumpMl)sum.push(`${st.pumpMl} ml pumped`);
+    h+=`<h3 class="day"><span>${dayLabel(k)}</span><small>${q?'':sum.join(', ')}</small></h3><ul class="list">${list.map(row).join('')}</ul>`;
   }
   if(!q&&ev.some(e=>e.start<addDays(dayStart(Date.now()),-(histDays-1)))) h+=`<div style="text-align:center;margin-top:16px"><button class="btn small" data-act="hist-more">Show 7 more days</button></div>`;
   return h;
@@ -508,7 +650,18 @@ function pattern(days,ev,now){
   });
   return s+'</svg>';
 }
-function tempChart(days,pts){
+// One dot per dirty diaper in its stool colour, stacked per day.
+function stoolChart(days,ev){
+  const n=days.length,per=days.map(d=>ev.filter(e=>e.type==='diaper'&&hasStool(e.data)&&e.start>=d.ds&&e.start<d.de).sort((a,b)=>a.start-b.start));
+  const W=340,L=4,R=4,B=18,cw=(W-L-R)/n,r=Math.min(5,cw*0.36),gap=r*2+2,mx=Math.min(8,Math.max(3,...per.map(p=>p.length))),H=B+8+mx*gap,f=x=>x.toFixed(1);
+  let s=`<svg viewBox="0 0 ${W} ${H}"><line class="gl" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>`;
+  per.forEach((list,i)=>{const cx=L+i*cw+cw/2;
+    list.slice(0,mx).forEach((e,k)=>{const c=STOOL[e.data.color],cy=H-B-r-2-k*gap;
+      s+=c?`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" fill="${c[1]}" class="sdot${stoolFlag(e)?' hot':''}"/>`:`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" class="f-diaper sdot"/>`;});
+    if(list.length>mx)s+=`<text class="ax" x="${f(cx)}" y="10" text-anchor="middle">+${list.length-mx}</text>`;});
+  return {svg:s,per};
+}
+function tempChart(days,pts,meds=[]){
   const W=340,H=150,l=30,r=8,t=10,b=20,t0=days[0].ds,t1=days[days.length-1].de;
   let y0=Math.min(36,...pts.map(p=>p.v))-.3,y1=Math.max(38.4,...pts.map(p=>p.v))+.3;
   const X=x=>l+(x-t0)/(t1-t0)*(W-l-r),Y=v=>t+(1-(v-y0)/(y1-y0))*(H-t-b),f=x=>x.toFixed(1);
@@ -520,6 +673,8 @@ function tempChart(days,pts){
   days.forEach((d,i)=>{if(i%step2===0||i===days.length-1) s+=`<text class="ax" x="${f(X(d.ds))}" y="${H-4}" text-anchor="middle">${i===days.length-1?'Today':new Date(d.ds).toLocaleDateString(LOC(),{day:'numeric',month:'numeric'})}</text>`;});
   if(pts.length>1) s+=`<path class="tline" d="${pts.map((p,i)=>`${i?'L':'M'}${f(X(p.t))} ${f(Y(p.v))}`).join('')}"/>`;
   pts.forEach(p=>{s+=`<circle class="tpt" cx="${f(X(p.t))}" cy="${f(Y(p.v))}" r="4"/>`;});
+  // Medication doses sit as small marks along the bottom, so fever and doses share one timeline.
+  meds.forEach(m=>{s+=`<rect class="mmk" x="${f(X(m.t)-3)}" y="${H-b-8}" width="6" height="6" rx="3"><title>${esc(m.name)} ${hm(m.t)}</title></rect>`;});
   return s+'</svg>';
 }
 function vTrends(){
@@ -533,22 +688,42 @@ function vTrends(){
   const box=(title,sub,svg)=>`<section class="chart"><h3><span>${title}</span><small>${sub}</small></h3>${svg.replace('<svg ',`<svg role="img" aria-label="${esc(title)}, ${esc(sub)}" `)}</section>`;
   const tips=days.map(d=>new Date(d.ds).toLocaleDateString(LOC(),{weekday:'short',day:'numeric',month:'short'})),hrs=v=>dur(v*36e5);
   const col=fn=>days.map(d=>fn(d.st));
-  h+=box('Sleep pattern','sleep blocks and feeds',pattern(days,ev,now));
-  const w=weekCompare(ev,now);
-  if(w.ok){const cmp=w.B.days>=4,row=(k,a,b)=>`<div><span>${k}</span><b>${a}</b><small>${cmp?b:''}</small></div>`;
-    h=h.replace('<section class="chart">',`<section class="wk"><h3>Last 7 days${cmp?' vs the 7 before':''}</h3><div class="wkg">${row('Sleep a day',dur(w.A.sleep),sgnDur(w.A.sleep-w.B.sleep))}${row('Longest night stretch',w.A.night?dur(w.A.night):'–',w.A.night&&w.B.night?sgnDur(w.A.night-w.B.night):'')}${row('Feeds a day',w.A.feeds.toFixed(1),sgnNum(w.A.feeds-w.B.feeds))}${row('Wet / dirty a day',`${w.A.wet.toFixed(1)} / ${w.A.dirty.toFixed(1)}`,'')}</div>${w.fresh.length?`<p class="muted">New foods: ${esc(w.fresh.join(', '))}</p>`:''}</section><section class="chart">`);}
-  h+=box('Sleep per day',`avg ${dur(avg(s=>s.sleep))}`,bars([{vals:col(s=>s.sleep/36e5),cls:'f-sleep',tip:v=>`${hrs(v)} sleep`}],labels,v=>v.toFixed(1),tips));
-  const nights=days.map(d=>{const x=nightStretch(d.ds,ev,now);return x?x.dur/36e5:0;}),nn=nights.filter(v=>v>0);
-  if(nn.length) h+=box('Longest stretch each night',`avg ${dur(nn.reduce((a,b)=>a+b,0)/nn.length*36e5)}`,bars([{vals:nights,cls:'f-sleep',tip:v=>v?`longest ${hrs(v)}`:'no night logged'}],labels,v=>v.toFixed(1),tips));
-  h+=box('Feeds per day',`avg ${avg(s=>s.feeds).toFixed(1)}`,bars([{vals:col(s=>s.feeds),cls:'f-feed',tip:v=>`${v} feeds`}],labels,v=>String(v),tips));
-  if(days.some(d=>d.st.nurseMin)) h+=box('Nursing minutes',`avg ${Math.round(avg(s=>s.nurseMin))} min`,bars([{vals:col(s=>Math.round(s.nurseMin)),cls:'f-feed',tip:v=>`${v} min nursing`}],labels,v=>String(v),tips));
-  if(days.some(d=>d.st.ml)) h+=box('Bottle volume',`avg ${Math.round(avg(s=>s.ml))} ml`,bars([{vals:col(s=>s.ml),cls:'f-feed',tip:v=>`${v} ml`}],labels,v=>String(v),tips));
-  h+=box('Diapers',`avg ${avg(s=>s.wet).toFixed(1)} wet, ${avg(s=>s.dirty).toFixed(1)} dirty`,bars([{vals:col(s=>s.wet),cls:'f-diaper2',tip:v=>`${v} wet`},{vals:col(s=>s.dirty),cls:'f-diaper',tip:v=>`${v} dirty`}],labels,null,tips));
-  if(days.some(d=>d.st.solids)) h+=box('Solids per day',`avg ${avg(s=>s.solids).toFixed(1)}`,bars([{vals:col(s=>s.solids),cls:'f-solids',tip:v=>`${v} solids`}],labels,v=>String(v),tips));
-  const tempPts=ev.filter(e=>e.data&&e.data.temp!=null&&e.start>=days[0].ds&&e.start<days[days.length-1].de).map(e=>({t:e.start,v:e.data.temp})).sort((a,b)=>a.t-b.t);
-  if(tempPts.length) h+=box('Temperature readings',`${tempPts.length} reading${tempPts.length===1?'':'s'}, highest ${fmtNum(Math.max(...tempPts.map(p=>p.v)))}°C`,tempChart(days,tempPts));
+  const w=feat('insights')?weekCompare(ev,now):{ok:false};
+  if(w.ok){const cmp=w.B.days>=4,row=(k,a,b)=>`<div><span>${k}</span><b>${a}</b><small>${cmp?b:''}</small></div>`,R2=[];
+    if(feat('sleep'))R2.push(row('Sleep a day',dur(w.A.sleep),sgnDur(w.A.sleep-w.B.sleep)),row('Longest night stretch',w.A.night?dur(w.A.night):'–',w.A.night&&w.B.night?sgnDur(w.A.night-w.B.night):''));
+    if(feedsOn())R2.push(row('Feeds a day',w.A.feeds.toFixed(1),sgnNum(w.A.feeds-w.B.feeds)));
+    if(feat('diaper'))R2.push(row('Wet / dirty a day',`${w.A.wet.toFixed(1)} / ${w.A.dirty.toFixed(1)}`,''));
+    const fresh=feat('solids')&&w.fresh.length?`<p class="muted">New foods: ${esc(w.fresh.join(', '))}</p>`:'';
+    if(R2.length||fresh)h+=`<section class="wk"><h3>Last 7 days${cmp?' vs the 7 before':''}</h3><div class="wkg">${R2.join('')}</div>${fresh}</section>`;}
+  if(feat('sleep')){
+    h+=box('Sleep pattern',feedsOn()?'sleep blocks and feeds':'sleep blocks',pattern(days,ev,now));
+    h+=box('Sleep per day',`avg ${dur(avg(s=>s.sleep))}`,bars([{vals:col(s=>s.sleep/36e5),cls:'f-sleep',tip:v=>`${hrs(v)} sleep`}],labels,v=>v.toFixed(1),tips));
+    const nights=days.map(d=>{const x=nightStretch(d.ds,ev,now);return x?x.dur/36e5:0;}),nn=nights.filter(v=>v>0);
+    if(nn.length&&feat('insights')) h+=box('Longest stretch each night',`avg ${dur(nn.reduce((a,b)=>a+b,0)/nn.length*36e5)}`,bars([{vals:nights,cls:'f-sleep',tip:v=>v?`longest ${hrs(v)}`:'no night logged'}],labels,v=>v.toFixed(1),tips));
+  }
+  if(feedsOn()) h+=box('Feeds per day',`avg ${avg(s=>s.feeds).toFixed(1)}`,bars([{vals:col(s=>s.feeds),cls:'f-feed',tip:v=>`${v} feeds`}],labels,v=>String(v),tips));
+  if(feat('nurse')&&days.some(d=>d.st.nurseMin)) h+=box('Nursing minutes',`avg ${Math.round(avg(s=>s.nurseMin))} min`,bars([{vals:col(s=>Math.round(s.nurseMin)),cls:'f-feed',tip:v=>`${v} min nursing`}],labels,v=>String(v),tips));
+  if(feat('bottle')&&days.some(d=>d.st.ml)) h+=box('Bottle volume',`avg ${Math.round(avg(s=>s.ml))} ml`,bars([{vals:col(s=>s.ml),cls:'f-feed',tip:v=>`${v} ml`}],labels,v=>String(v),tips));
+  if(feat('pump')&&days.some(d=>d.st.pumpMl)) h+=box('Pumped per day',`avg ${Math.round(avg(s=>s.pumpMl))} ml`,bars([{vals:col(s=>s.pumpMl),cls:'f-pump',tip:v=>`${v} ml pumped`}],labels,v=>String(v),tips));
+  if(feat('diaper')){
+    h+=box('Diapers',`avg ${avg(s=>s.wet).toFixed(1)} wet, ${avg(s=>s.dirty).toFixed(1)} dirty`,bars([{vals:col(s=>s.wet),cls:'f-diaper2',tip:v=>`${v} wet`},{vals:col(s=>s.dirty),cls:'f-diaper',tip:v=>`${v} dirty`}],labels,null,tips));
+    const sc=stoolChart(days,ev),all=sc.per.flat(),det=all.filter(e=>e.data.color||e.data.cons);
+    if(det.length){
+      const cnt=(key,MAP)=>{const m={};all.forEach(e=>{const k=e.data[key];if(MAP[k])m[k]=(m[k]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${MAP[k]} ${v}`).join(', ');};
+      const hits=sc.per.map((list,i)=>`<rect class="hit" x="${(4+i*(332/days.length)).toFixed(1)}" y="0" width="${(332/days.length).toFixed(1)}" height="100%" data-act="bar" data-tip="${esc(`${tips[i]}: ${list.length?list.map(e=>stoolText(e.data)||'dirty').join('; '):'no dirty diapers'}`)}"/>`).join('');
+      const flagged=all.filter(stoolFlag).length,c1=cnt('color',STOOL_SHORT),c2=cnt('cons',CONS_SHORT);
+      h+=`<section class="chart"><h3><span>Stool</span><small>${all.length} dirty, ${det.length} with details</small></h3>${sc.svg.replace('<svg ',`<svg role="img" aria-label="Stool colours per day" `).replace('</svg>',hits+'</svg>')}<p class="muted sbrk">${c1?`Colours: ${esc(c1)}.`:''}${c2?` Consistency: ${esc(c2)}.`:''}${flagged?` <b class="flag">${flagged} marked to mention</b>`:''}</p></section>`;
+    }
+  }
+  if(feat('solids')&&days.some(d=>d.st.solids)) h+=box('Solids per day',`avg ${avg(s=>s.solids).toFixed(1)}`,bars([{vals:col(s=>s.solids),cls:'f-solids',tip:v=>`${v} solids`}],labels,v=>String(v),tips));
+  const inR=e=>e.start>=days[0].ds&&e.start<days[days.length-1].de;
+  const tempPts=feat('temp')?ev.filter(e=>e.data&&e.data.temp!=null&&inR(e)).map(e=>({t:e.start,v:e.data.temp})).sort((a,b)=>a.t-b.t):[];
+  const medPts=tempPts.length&&feat('med')?ev.filter(e=>inR(e)&&isMed(e)&&!isVit(e)).map(e=>({t:e.start,name:medName(e)})):[];
+  if(tempPts.length) h+=box('Temperature readings',`${tempPts.length} reading${tempPts.length===1?'':'s'}, highest ${fmtNum(Math.max(...tempPts.map(p=>p.v)))}°C`,tempChart(days,tempPts,medPts));
+  if(h.indexOf('<section')<0) return h+empty('chart','Nothing to chart for what you track yet.');
   h+=`<p class="muted" style="margin:4px 2px 8px">Tap a day in a bar chart to see its numbers.</p>`;
-  h+=`<p class="muted" style="margin:4px 2px">Averages leave out today because it is still in progress. Light bars are wet diapers, dark bars dirty.${tempPts.length?' Dashed line marks 38.0°C.':''}</p>`;
+  const notes=[];if(feat('diaper'))notes.push('Light bars are wet diapers, dark bars dirty.');if(tempPts.length)notes.push('Dashed line marks 38.0°C.');if(medPts.length)notes.push('Small marks along the bottom are medication doses.');
+  h+=`<p class="muted" style="margin:4px 2px">${['Averages leave out today because it is still in progress.',...notes].map(x=>`<span>${x}</span>`).join(' ')}</p>`;
   return h;
 }
 
@@ -790,39 +965,64 @@ async function exportIcs(){
 let reportRange=14;
 function reportData(R){
   const n=Date.now(),t0=dayStart(n),from=addDays(t0,-R),ev=live(),inR=e=>e.start>=from&&e.start<t0,dob=dobTs(),st=S.settings;
-  let sleep=0,feeds=0,nm=0,ml=0,wet=0,dirty=0,naps=0,nightSum=0,nightN=0,solidDays=0,days=0,bottles=0;
+  let sleep=0,feeds=0,nm=0,ml=0,wet=0,dirty=0,naps=0,nightSum=0,nightN=0,solidDays=0,days=0,bottles=0,pumpMl=0,pumps=0;
   for(let i=1;i<=R;i++){const d=addDays(t0,-i);if(!ev.some(e=>e.start>=d&&e.start<addDays(d,1)))continue;days++;
-    const s=dayStats(d,addDays(d,1),ev,n);bottles+=ev.filter(e=>e.type==='bottle'&&e.start>=d&&e.start<addDays(d,1)).length;sleep+=s.sleep;feeds+=s.feeds;nm+=s.nurseMin;ml+=s.ml;wet+=s.wet;dirty+=s.dirty;if(s.solids)solidDays++;
+    const s=dayStats(d,addDays(d,1),ev,n);bottles+=ev.filter(e=>e.type==='bottle'&&e.start>=d&&e.start<addDays(d,1)).length;sleep+=s.sleep;feeds+=s.feeds;nm+=s.nurseMin;pumpMl+=s.pumpMl;pumps+=s.pumps;ml+=s.ml;wet+=s.wet;dirty+=s.dirty;if(s.solids)solidDays++;
     naps+=ev.filter(e=>e.type==='sleep'&&e.start>=atHour(d,7)&&e.start<atHour(d,19)).length;
     const ns=nightStretch(d,ev,0);if(ns){nightSum+=ns.dur;nightN++;}}
   const seen=new Set();ev.slice().sort((a,b)=>a.start-b.start).forEach(e=>{if(e.type==='solids'&&e.data.food&&e.start<from)seen.add(e.data.food.trim().toLowerCase());});
   const foods=[];const fs=new Set();ev.filter(e=>e.type==='solids'&&inR(e)).sort((a,b)=>a.start-b.start).forEach(e=>{const k=(e.data.food||'').trim();if(!k||fs.has(k.toLowerCase()))return;fs.add(k.toLowerCase());foods.push({name:k,fresh:!seen.has(k.toLowerCase())});});
   const reactions=ev.filter(e=>e.type==='solids'&&inR(e)&&e.data.symptoms).map(e=>({when:e.start,food:e.data.food,note:e.data.note||''}));
   const temps=ev.filter(e=>inR(e)&&e.data&&e.data.temp!=null).sort((a,b)=>a.start-b.start);
-  const meds=ev.filter(e=>inR(e)&&medName(e)).sort((a,b)=>a.start-b.start).map(e=>({when:e.start,name:medName(e),note:e.data.note||'',temp:e.data.temp}));
-  const rash=new Set(ev.filter(e=>e.type==='diaper'&&inR(e)&&/rash|wund|ausschlag/i.test(e.data.note||'')).map(e=>dayStart(e.start))).size;
+  const meds=ev.filter(e=>inR(e)&&medName(e)).sort((a,b)=>a.start-b.start).map(e=>({when:e.start,name:medName(e),note:e.data.note||'',temp:e.data.temp,dose:e.type==='med'?doseText(e.data):''}));
+  const rash=new Set(ev.filter(e=>e.type==='diaper'&&inR(e)&&(e.data.rash||/rash|wund|ausschlag/i.test(e.data.note||''))).map(e=>dayStart(e.start))).size;
+  const stools=ev.filter(e=>e.type==='diaper'&&inR(e)&&hasStool(e.data)).sort((a,b)=>a.start-b.start);
+  const top=(key,MAP)=>{const m={};stools.forEach(e=>{const k=e.data[key];if(MAP[k])m[k]=(m[k]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k])=>MAP[k]);};
+  const stool={colors:top('color',STOOL_SHORT),cons:top('cons',CONS_SHORT),flagged:stools.filter(stoolFlag).map(e=>({when:e.start,text:stoolText(e.data)}))};
   const g=ev.filter(e=>e.type==='growth').sort((a,b)=>b.start-a.start);
   const lastOf=k=>g.find(e=>e.data[k]>0),prevOf=(k,x)=>x&&g.find(e=>e.data[k]>0&&e.start<x.start);
   const growth=[['kg','w','Weight','kg'],['cm','l','Length','cm'],['head','h','Head','cm']].map(([k,key,label,unit])=>{const a=lastOf(k);if(!a)return null;const b=prevOf(k,a);
     return {label,unit,v:a.data[k],when:a.start,p:st.sex?pctl(key,daysBetween(dob,a.start),a.data[k]):'',prev:b?{v:b.data[k],when:b.start}:null};}).filter(Boolean);
   const C=st.dob?computeChecks():null;
   return {R,from,to:addDays(t0,-1),n,name:st.name||'Baby',dob:st.dob,age:ageText(),
-    days,avg:{sleep:sleep/(days||1),feeds:feeds/(days||1),nm:nm/(days||1),ml:ml/(days||1),mlTotal:ml,bottles,wet:wet/(days||1),dirty:dirty/(days||1),naps:naps/(days||1),night:nightN?nightSum/nightN:0,solidDays},
-    foods,reactions,temps,meds,rash,growth,C};
+    days,avg:{pumpMl:pumpMl/(days||1),pumps,sleep:sleep/(days||1),feeds:feeds/(days||1),nm:nm/(days||1),ml:ml/(days||1),mlTotal:ml,bottles,wet:wet/(days||1),dirty:dirty/(days||1),naps:naps/(days||1),night:nightN?nightSum/nightN:0,solidDays},
+    foods,reactions,temps,meds,rash,stool,growth,C};
+}
+// One row per medicine: how many doses, the dose, and when. Daily medicines show on how many days.
+function medRows(meds){
+  const g=new Map();meds.forEach(m=>{const k=m.name.toLowerCase();if(!g.has(k))g.set(k,{name:m.name,list:[]});g.get(k).list.push(m);});
+  return [...g.values()].map(({name,list})=>{
+    const doses=[...new Set(list.map(m=>m.dose).filter(Boolean))],one=doses.length===1&&list.every(m=>m.dose===doses[0]);
+    const notes=[...new Set(list.map(m=>m.note).filter(Boolean))];
+    let v;
+    if(isDailyName(name)){const days=new Set(list.map(m=>dayStart(m.when))).size;v=`given on ${days} ${days===1?'day':'days'}${one?`, ${esc(doses[0])}`:''}`;}
+    else v=`${list.length} ${list.length===1?'dose':'doses'}${one?` of ${esc(doses[0])}`:''}: ${list.map(m=>esc(whenStr(m.when))+(!one&&m.dose?` (${esc(m.dose)})`:'')).join(', ')}`;
+    if(notes.length)v+=` – ${esc(notes.join('; '))}`;
+    return [name,v];
+  });
 }
 function reportHtml(d,q){
   const rows=x=>x.map(([k,v])=>`<tr><th>${esc(k)}</th><td>${v}</td></tr>`).join('');
   const a=d.avg,feedBits=[`${a.feeds.toFixed(1)} feeds a day`];if(a.nm)feedBits.push(`${Math.round(a.nm)} min nursing`);
   if(a.bottles)feedBits.push(a.bottles>=d.days/2?`${Math.round(a.ml)} ml from bottles`:`${a.bottles} ${a.bottles===1?'bottle':'bottles'} in total (${Math.round(a.mlTotal)} ml)`);
   let h=`<div class="rp"><header><h1>${esc(d.name)}</h1><p>Born ${esc(dateStr(fromInput(d.dob)))}${d.age?`, ${esc(d.age)}`:''}${/\.$/.test(d.age||'')?'':'.'} Summary of the last ${d.R} days, ${esc(dateStr(d.from))} – ${esc(dateStr(d.to))}${d.days<d.R?`; averages use the ${d.days} days with entries`:''}. Created ${esc(whenStr(d.n))}.</p></header>`;
-  h+=`<h2>Daily averages</h2><table>${rows([['Feeding',feedBits.join(', ')],['Sleep',`${dur(a.sleep)} a day, ${a.naps.toFixed(1)} daytime naps${a.night?`, longest night stretch ${dur(a.night)} on average`:''}`],['Diapers',`${a.wet.toFixed(1)} wet, ${a.dirty.toFixed(1)} dirty a day${d.rash?`; rash noted on ${d.rash} day${d.rash>1?'s':''}`:''}`],['Solids',a.solidDays?`on ${a.solidDays} of ${d.days} days`:'none logged']])}</table>`;
-  if(d.foods.length)h+=`<h2>Foods in this period</h2><p>${d.foods.map(f=>esc(f.name)+(f.fresh?' <em>(new)</em>':'')).join(', ')}</p>`;
-  if(d.reactions.length)h+=`<h2>Reactions noted after food</h2><table>${rows(d.reactions.map(r=>[whenStr(r.when),esc(r.food||'')+(r.note?` – ${esc(r.note)}`:'')]))}</table>`;
+  // Stool colours worth mentioning come first, ahead of the averages.
+  if(feat('diaper')&&d.stool.flagged.length)h+=`<h2>Stool to mention</h2><table>${rows(d.stool.flagged.map(x=>[whenStr(x.when),esc(x.text)]))}</table>`;
+  const AV=[];
+  if(feedsOn())AV.push(['Feeding',feedBits.join(', ')]);
+  if(feat('pump')&&a.pumps)AV.push(['Pumping',`${Math.round(a.pumpMl)} ml a day, ${a.pumps} ${a.pumps===1?'session':'sessions'} in total`]);
+  if(feat('sleep'))AV.push(['Sleep',`${dur(a.sleep)} a day, ${a.naps.toFixed(1)} daytime naps${a.night?`, longest night stretch ${dur(a.night)} on average`:''}`]);
+  if(feat('diaper')){const sb=[...d.stool.colors,...d.stool.cons];
+    AV.push(['Diapers',`${a.wet.toFixed(1)} wet, ${a.dirty.toFixed(1)} dirty a day${sb.length?`; stool mostly ${esc(sb.join(', '))}`:''}${d.rash?`; rash noted on ${d.rash} day${d.rash>1?'s':''}`:''}`]);}
+  if(feat('solids'))AV.push(['Solids',a.solidDays?`on ${a.solidDays} of ${d.days} days`:'none logged']);
+  if(AV.length)h+=`<h2>Daily averages</h2><table>${rows(AV)}</table>`;
+  if(feat('solids')&&d.foods.length)h+=`<h2>Foods in this period</h2><p>${d.foods.map(f=>esc(f.name)+(f.fresh?' <em>(new)</em>':'')).join(', ')}</p>`;
+  if(feat('solids')&&d.reactions.length)h+=`<h2>Reactions noted after food</h2><table>${rows(d.reactions.map(r=>[whenStr(r.when),esc(r.food||'')+(r.note?` – ${esc(r.note)}`:'')]))}</table>`;
   const hi=d.temps.filter(e=>e.data.temp>=37.5);
-  h+=`<h2>Temperatures</h2>${d.temps.length?(hi.length?`<table>${rows(hi.map(e=>[whenStr(e.start),`${fmtNum(e.data.temp)} °C`]))}</table><p>${d.temps.length} readings logged, highest ${fmtNum(Math.max(...d.temps.map(e=>e.data.temp)))} °C.</p>`:`<p>${d.temps.length} readings logged, none at 37.5 °C or above (highest ${fmtNum(Math.max(...d.temps.map(e=>e.data.temp)))} °C).</p>`):'<p>No readings logged.</p>'}`;
-  h+=`<h2>Medication</h2>${d.meds.length?`<table>${rows(d.meds.map(m=>[whenStr(m.when),esc(m.name)+(m.note?` – ${esc(m.note)}`:'')]))}</table>`:'<p>None logged.</p>'}`;
-  if(d.growth.length)h+=`<h2>Growth</h2><table>${rows(d.growth.map(x=>[x.label,`${fmtNum(x.v)} ${x.unit}${x.p?` (${x.p})`:''} on ${esc(dateStr(x.when))}${x.prev?`; before: ${fmtNum(x.prev.v)} ${x.unit} on ${esc(dateStr(x.prev.when))}`:''}`]))}</table><p class="fine">Percentiles: WHO Child Growth Standards.</p>`;
-  if(d.C){
+  if(feat('temp')||d.temps.length)h+=`<h2>Temperatures</h2>${d.temps.length?(hi.length?`<table>${rows(hi.map(e=>[whenStr(e.start),`${fmtNum(e.data.temp)} °C`]))}</table><p>${d.temps.length} readings logged, highest ${fmtNum(Math.max(...d.temps.map(e=>e.data.temp)))} °C.</p>`:`<p>${d.temps.length} readings logged, none at 37.5 °C or above (highest ${fmtNum(Math.max(...d.temps.map(e=>e.data.temp)))} °C).</p>`):'<p>No readings logged.</p>'}`;
+  if(feat('med')||feat('daily')||d.meds.length)h+=`<h2>Medication</h2>${d.meds.length?`<table>${rows(medRows(d.meds))}</table>`:'<p>None logged.</p>'}`;
+  if(feat('growth')&&d.growth.length)h+=`<h2>Growth</h2><table>${rows(d.growth.map(x=>[x.label,`${fmtNum(x.v)} ${x.unit}${x.p?` (${x.p})`:''} on ${esc(dateStr(x.when))}${x.prev?`; before: ${fmtNum(x.prev.v)} ${x.unit} on ${esc(dateStr(x.prev.when))}`:''}`]))}</table><p class="fine">Percentiles: WHO Child Growth Standards.</p>`;
+  if(d.C&&feat('checks')){
     const given=d.C.v.flatMap(x=>x.doses.filter(z=>z.done).map(z=>[`${x.name}${x.doses.length>1?` dose ${z.i+1}`:''}`,esc(dateStr(z.done.start))]));
     const open=d.C.v.flatMap(x=>{const z=x.doses.find(z=>z.state!=='done');return z&&z.state==='due'?[[`${x.name}${x.doses.length>1?` dose ${z.i+1}`:''}`,`not logged yet, recommended from ${esc(dateStr(z.due))}`]]:[];});
     h+=`<h2>Vaccinations (from the log)</h2>${given.length?`<table>${rows(given)}</table>`:'<p>None logged.</p>'}${open.length?`<table class="open">${rows(open)}</table>`:''}`;
@@ -886,7 +1086,7 @@ function vline(type,v){const d=describe({type,start:v.start,end:v.end,data:v.dat
 function openHistory(id){
   const e=S.events.find(x=>x.id===id);if(!e||!e.hist||!e.hist.length)return;
   const cur=vline(e.type,e);
-  const rows=e.hist.map((v,i)=>({v,i})).reverse().map(({v,i})=>{const l=vline(e.type,v);
+  const rows=e.hist.map((v,i)=>({v,i})).reverse().map(({v,i})=>{const l=vline(v.type||e.type,v);
     return `<li class="hrow"><span class="rt"><b>${esc(l.title)}</b><small>${esc(l.sub)}</small><small>Version from ${whenStr(v.at)}${v.by?` by ${esc(v.by)}`:''}</small></span><button class="btn small" data-act="hist-restore" data-id="${id}" data-i="${i}">Restore</button></li>`;}).join('');
   openSheet(`<h2>Earlier versions</h2><p class="muted" style="margin-bottom:10px">Now: ${esc(cur.title)}, ${esc(cur.sub)}</p><ul class="list">${rows}</ul><div class="foot"><button class="btn" data-act="close">Close</button></div>`);
 }
@@ -972,6 +1172,8 @@ function openEditor(type,e,prefill){
   const ago=(id,list=[0,5,10,15,30])=>`<div class="presets ago">${list.map(m=>`<button type="button" class="chip" data-act="ago" data-t="${id}" data-m="${m}">${m?m+' min ago':'Now'}</button>`).join('')}</div>`;
   const time=(label='Time')=>fld(label,`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start');
   const note=()=>fld('Note',`<textarea id="f-note" rows="2" placeholder="optional">${esc(d.note||'')}</textarea>`);
+  const showTemp=feat('temp')||d.temp!=null,tempF=()=>showTemp?fld('Temperature (°C)',txt('f-temp',d.temp??'','decimal','optional')):'';
+  const pick=(id,MAP,val,cls='chip')=>`<input type="hidden" id="${id}" value="${esc(val||'')}"><div class="chips wrap">${Object.entries(MAP).map(([k,l])=>`<button type="button" class="${cls} ${val===k?'on':''}" data-act="pick" data-group="${id}" data-val="${esc(k)}">${esc(l)}</button>`).join('')}</div>`;
   switch(type){
     case 'nurse':
       f+=time('Started');
@@ -985,12 +1187,41 @@ function openEditor(type,e,prefill){
     case 'sleep':
       f+=fld('Fell asleep',`<input id="f-start" type="datetime-local" value="${toInput(e.start)}">`)+ago('f-start',[15,30,60,90,120]);
       f+=fld('Woke up',`<input id="f-end" type="datetime-local" value="${toInput(e.end)}">`)+ago('f-end');f+=note();break;
-    case 'diaper':
+    case 'diaper':{
+      // Wet saves in one tap. Dirty or Both opens the stool panel (Settings → Stool details:
+      // ask every time), or saves at once if details are off or only added on request.
+      const sm=S.settings.stool||'auto',had=hasStool(d)&&(d.color||d.cons||d.amt||(d.x||[]).length),panel=sm!=='off'||had;
       f+=time();
-      f+=`<div class="two">${fld('Temperature (°C)',txt('f-temp',d.temp??'','decimal','optional'))}${fld('Note',`<input id="f-note" type="text" value="${esc(d.note||'')}" placeholder="optional" autocomplete="off">`)}</div>`;
-      if(isNew){f+=`<input type="hidden" id="f-kind" value="wet"><div class="big3"><button data-act="diaper-save" data-kind="wet">Wet</button><button data-act="diaper-save" data-kind="dirty">Dirty</button><button data-act="diaper-save" data-kind="both">Both</button></div>`;}
+      const nf=fld('Note',`<input id="f-note" type="text" value="${esc(d.note||'')}" placeholder="optional" autocomplete="off">`);
+      f+=showTemp?`<div class="two">${tempF()}${nf}</div>`:nf;
+      f+=`<div class="presets dz"><button type="button" class="chip ${d.rash?'on':''}" id="f-rash" data-act="tog">Nappy rash</button>${isNew&&sm==='tap'?'<button type="button" class="chip" data-act="stool-open">+ Stool details</button>':''}</div>`;
+      if(isNew){f+=`<input type="hidden" id="f-kind" value="wet"><div class="big3"><button data-act="diaper-kind" data-kind="wet">Wet</button><button data-act="diaper-kind" data-kind="dirty">Dirty</button><button data-act="diaper-kind" data-kind="both">Both</button></div>`;}
       else f+=fldD('Kind',seg('f-kind',[['wet','Wet'],['dirty','Dirty'],['both','Both'],['dry','Dry']],d.kind||'wet'));
-      break;
+      if(panel){
+        const sw=`<input type="hidden" id="f-scol" value="${esc(d.color||'')}"><div class="swatches">${Object.entries(STOOL).map(([k,[l,hex]])=>`<button type="button" class="swb ${d.color===k?'on':''}" data-act="pick" data-group="f-scol" data-val="${k}" aria-label="${esc(l)}" title="${esc(l)}"><i style="--sw:${hex}"></i><span>${k==='pale'?'Pale / grey':esc(l)}</span></button>`).join('')}</div>`;
+        f+=`<div class="stool ${!isNew&&hasStool(d)?'open':''}" id="f-stool"><div class="stool-in">
+          ${fldD('Colour',sw)}${fldD('Consistency',pick('f-scons',CONS,d.cons))}${fldD('Amount',pick('f-samt',AMT,d.amt))}
+          ${fldD('Also noticed',`<div class="chips wrap" id="f-sx">${Object.entries(SX).map(([k,l])=>`<button type="button" class="chip ${(d.x||[]).includes(k)?'on':''}" data-act="tog" data-v="${k}">${esc(l)}</button>`).join('')}</div>`)}
+          ${isNew?'<div class="foot"><button class="btn primary" data-act="ed-save">Save</button></div><button class="link" data-act="stool-skip">Save without details</button>':''}</div></div>`;
+      }
+      break;}
+    case 'med':{
+      const recent=[...new Set(live().filter(x=>x.type==='med').map(x=>(x.data.name||'').trim()).filter(Boolean))];
+      const names=[...new Set([...recent.slice(0,6),...MED_COMMON])].slice(0,8);
+      f+=time();
+      f+=fldD('Medicine',`<input id="f-mname" list="medlist" autocomplete="off" value="${esc(d.name||prefill||'')}" placeholder="e.g. Paracetamol"><datalist id="medlist">${recent.map(x=>`<option value="${esc(x)}">`).join('')}</datalist><div class="presets">${names.map(x=>`<button type="button" class="chip" data-act="med-name" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>`);
+      const u=d.unit||(isNew?'':'')||S.prefs.medUnit||'ml';
+      f+=fldD('Dose',`<div class="dose-row">${txt('f-dose',d.dose??'','decimal','optional')}${pick('f-munit',Object.fromEntries(MED_UNITS.map(x=>[x,x])),u)}</div>`);
+      f+=fldD('How it was given',pick('f-mform',MED_FORM,d.form));
+      f+=fldD('Reason',`<input id="f-reason" type="text" value="${esc(d.reason||'')}" placeholder="optional" autocomplete="off"><div class="presets">${MED_REASONS.map(x=>`<button type="button" class="chip" data-act="setv" data-t="f-reason" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>`);
+      f+=tempF();
+      if(feat('daily'))f+=`<label class="check"><input type="checkbox" id="f-daily" ${d.name&&isDailyName(d.name)?'checked':''}> Every day: show a Given / Not yet card on Today</label>`;
+      f+=note();break;}
+    case 'pump':
+      f+=time('Started');
+      f+=`<div class="two">${fld('Left (ml)',txt('f-pl',d.l??'','numeric','optional'))}${fld('Right (ml)',txt('f-pr',d.r??'','numeric','optional'))}</div>`;
+      f+=`<div class="two">${fld('Total (ml)',txt('f-pml',d.ml??'','numeric'))}${fld('Duration (min)',txt('f-pmin',d.min??'','numeric','optional'))}</div>`;
+      f+=note();break;
     case 'solids':{
       const names=[...new Set(live().filter(x=>x.type==='solids').map(x=>x.data.food))];
       f+=time();
@@ -1005,10 +1236,10 @@ function openEditor(type,e,prefill){
       f+=`<div class="two">${fld('Weight (kg)',txt('f-kg',d.kg??'','decimal','e.g. 6.8'))}${fld('Length (cm)',txt('f-cm',d.cm??'','decimal','e.g. 64'))}</div>`;
       f+=fld('Head circumference (cm)',txt('f-head',d.head??'','decimal','optional'));f+=note();break;
     case 'other':{
-      const labels=[...new Set(['Bath','Vitamin D','Medication: Paracetamol','Medication: Ibuprofen','Temperature','Tummy time',...live().filter(x=>x.type==='other').map(x=>x.data.label).filter(Boolean)])];
+      const labels=[...new Set(['Bath','Temperature','Tummy time',...live().filter(x=>x.type==='other').map(x=>x.data.label).filter(Boolean)])];
       f+=time();
-      f+=fld('What',`<input id="f-label" list="otherlist" autocomplete="off" value="${esc(d.label||'')}" placeholder="e.g. Bath, Vitamin D, Paracetamol"><datalist id="otherlist">${labels.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`);
-      f+=fld('Temperature (°C)',txt('f-temp',d.temp??'','decimal','optional'));
+      f+=fld('What',`<input id="f-label" list="otherlist" autocomplete="off" value="${esc(d.label||'')}" placeholder="e.g. Bath, Tummy time"><datalist id="otherlist">${labels.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`);
+      f+=tempF();
       f+=note();break;}
   }
   const saveBtn=(type==='diaper'&&isNew)?'':`<button class="btn primary" data-act="ed-save">Save</button>`;
@@ -1020,6 +1251,18 @@ function openEditor(type,e,prefill){
     const prev=live().find(x=>x.type==='solids'&&x.data.food&&x.data.food.toLowerCase()===food.value.trim().toLowerCase());
     if(prev&&!document.querySelector('#f-alg .on')) document.querySelectorAll('#f-alg .chip').forEach(c=>c.classList.toggle('on',(prev.data.allergens||[]).includes(c.dataset.v)));
   });
+  // Picking a medicine fills in its last dose ("same as last time") while the dose is empty.
+  const mn=$('#f-mname');
+  if(mn) mn.addEventListener('change',()=>medFill(mn.value));
+  // Pumping: the total follows left + right while either is filled in.
+  ['f-pl','f-pr'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('input',()=>{const l=num($('#f-pl').value),r=num($('#f-pr').value);if(l>0||r>0)$('#f-pml').value=(l>0?l:0)+(r>0?r:0);});});
+}
+function medFill(name){
+  const o=lastMed(name),dl=$('#f-daily');if(dl)dl.checked=isDailyName(name);
+  if(!o||$('#f-dose').value.trim())return;
+  const x=o.data;if(x.dose!=null)$('#f-dose').value=fmtNum(x.dose);
+  const setPick=(id,val)=>{if(!val)return;$('#'+id).value=val;document.querySelectorAll(`[data-group="${id}"]`).forEach(b=>b.classList.toggle('on',b.dataset.val===val));};
+  setPick('f-munit',x.unit);setPick('f-mform',x.form);
 }
 function readEditor(){
   const v=id=>{const el=$('#'+id);return el?el.value:'';};
@@ -1033,7 +1276,18 @@ function readEditor(){
     case 'bottle': d.ml=Math.round(num(v('f-ml')));if(!(d.ml>0)) throw 'Enter an amount in ml.';d.kind=v('f-kind');S.prefs.ml=d.ml;S.prefs.kind=d.kind;break;
     case 'sleep': end=fromInput(v('f-end'));if(!(end>start)) throw 'Wake-up time must be after the start.';if(end-start>24*36e5) throw 'That sleep is over 24 hours. Check the dates.';
       if(end>Date.now()+5*6e4) throw 'Wake-up time is in the future.';break;
-    case 'diaper': d.kind=v('f-kind')||'wet';readTemp(v,d);break;
+    case 'diaper':{d.kind=v('f-kind')||'wet';readTemp(v,d);if($('#f-rash.on'))d.rash=true;
+      if(hasStool(d)){const o=e.data||{};
+        if(!$('#f-stool')){['color','cons','amt','x'].forEach(k=>{if(o[k]!=null)d[k]=o[k];});}
+        else if(!e._nostool){const c=v('f-scol'),k=v('f-scons'),a=v('f-samt'),x=[...document.querySelectorAll('#f-sx .on')].map(b=>b.dataset.v);
+          if(STOOL[c])d.color=c;if(CONS[k])d.cons=k;if(AMT[a])d.amt=a;if(x.length)d.x=x;}}
+      break;}
+    case 'med':{d.name=v('f-mname').trim();if(!d.name) throw 'Enter the medicine, for example Paracetamol.';
+      const ds=num(v('f-dose'));if(ds>0){d.dose=ds;d.unit=MED_UNITS.includes(v('f-munit'))?v('f-munit'):'ml';S.prefs.medUnit=d.unit;}
+      if(MED_FORM[v('f-mform')])d.form=v('f-mform');const rs=v('f-reason').trim();if(rs)d.reason=rs;readTemp(v,d);break;}
+    case 'pump':{const l=num(v('f-pl')),r=num(v('f-pr')),t=num(v('f-pml')),m=num(v('f-pmin'));
+      if(l>0)d.l=Math.round(l);if(r>0)d.r=Math.round(r);d.ml=d.l||d.r?(d.l||0)+(d.r||0):t>0?Math.round(t):0;if(m>0)d.min=Math.round(m);
+      if(!d.ml&&!d.min) throw 'Enter an amount in ml or a duration.';if(!d.ml)delete d.ml;break;}
     case 'other': d.label=v('f-label').trim();if(!d.label) throw 'Enter what happened, for example Bath.';readTemp(v,d);break;
     case 'solids':{
       d.food=v('f-food').trim();if(!d.food) throw 'Enter the food.';
@@ -1057,17 +1311,43 @@ function readTemp(v,d){const raw=v('f-temp').trim();if(raw==='')return;const x=n
 function saveEditor(){
   try{
     const r=readEditor(),wasNew=ed._new,e={...ed,start:r.start,data:r.data};
-    delete e._new;if(r.end!=null)e.end=r.end;else delete e.end;if(!e.id)e.id=uid();
-    upsert(e);closeSheet();render();
-    toast(wasNew?`${LABEL[e.type]} saved`:'Changes saved',wasNew?()=>removeEv(e.id):null);
+    delete e._new;delete e._nostool;if(r.end!=null)e.end=r.end;else delete e.end;if(!e.id)e.id=uid();
+    const dl=$('#f-daily');if(e.type==='med'&&dl){const nm=e.data.name,L=dailyNames().filter(x=>x.toLowerCase()!==nm.toLowerCase()&&!(/^vitamin\s*d$/i.test(x)&&/^vitamin\s*d$/i.test(nm)));if(dl.checked)L.push(nm);S.settings.daily=L;}
+    upsert(e);closeSheet();render();if(e.type==='med')refreshVitReminder();
+    toast(wasNew?`${e.type==='med'?e.data.name:LABEL[e.type]} saved`:'Changes saved',wasNew?()=>removeEv(e.id):null);
   }catch(err){toast(typeof err==='string'?err:'Could not save this entry.');}
 }
 
 function openChooser(){
-  const T=[['nurse','Nursing',I.drop,'feed'],['bottle','Bottle',I.bottle,'feed'],['sleep','Sleep',I.moon,'sleep'],['diaper','Diaper',I.diaper,'diaper'],['solids','Solids',I.spoon,'solids'],['growth','Measurement',I.growth,'growth'],['other','Other',I.note,'other']];
+  const T=[['nurse','Nursing',I.drop,'feed'],['bottle','Bottle',I.bottle,'feed'],['pump','Pumping',I.pump,'pump'],['sleep','Sleep',I.moon,'sleep'],['diaper','Diaper',I.diaper,'diaper'],['solids','Solids',I.spoon,'solids'],['med','Medication',I.pill,'med'],['growth','Measurement',I.growth,'growth'],['other','Other',I.note,'other']].filter(([t])=>t==='other'||feat(t));
   openSheet(`<h2>Add an earlier entry</h2><div class="chooser">${T.map(([t,l,svg,c])=>`<button class="act c-${c}" data-act="new" data-type="${t}">${svg}<span>${l}</span></button>`).join('')}</div><div class="foot"><button class="btn" data-act="close">Cancel</button></div>`);
 }
 
+// Theme cards show each palette in the current light or dark mode; tapping one applies it at once.
+const baseMode=()=>{const t=S.settings.theme;return t==='light'||t==='dark'?t:(mq.matches?'dark':'light');};
+function palPicker(){
+  const cur=S.settings.palette||'calm',m=baseMode();
+  return `<div class="pals">${PALS.map(([k,l])=>`<button type="button" class="pal ${cur===k?'on':''}" data-act="pal" data-v="${k}" data-pal="${k}" data-theme="${k==='oled'?'dark':m}" aria-pressed="${cur===k}"><span class="pv" aria-hidden="true"><i class="pv-h"></i><i class="pv-r"><i></i><i></i><i></i></i></span><b>${l}</b></button>`).join('')}</div>`;
+}
+function refreshPals(){
+  const cur=S.settings.palette||'calm',m=baseMode();
+  document.querySelectorAll('.pal').forEach(b=>{const on=b.dataset.v===cur;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);b.dataset.theme=b.dataset.v==='oled'?'dark':m;});
+  const nt=$('#oled-note');if(nt)nt.hidden=cur!=='oled';
+}
+// Theme and mode changes apply straight away, with a soft crossfade where the phone supports it.
+function lookChange(fn){
+  const go=()=>{fn();applyTheme();refreshPals();save();};
+  if(document.startViewTransition&&!matchMedia('(prefers-reduced-motion: reduce)').matches){try{document.startViewTransition(go);return;}catch(e){}}
+  go();
+}
+// Feature switches. In Settings they apply at once; in the welcome they're saved with Start.
+function featList(welcome){
+  const st=S.settings;
+  return `<div class="feats">${FEATS.map(([k,l,sub])=>{
+    const row=`<label class="sw-row"><span><b>${l}</b>${sub?`<small>${sub}</small>`:''}</span><input type="checkbox" class="switch" data-feat="${k}" ${feat(k)?'checked':''}></label>`;
+    return k==='diaper'&&!welcome?row+`<div class="sw-sub" data-for="diaper"${feat('diaper')?'':' hidden'}>${fldD('Stool details for dirty diapers',seg('s-stool',[['auto','Ask after Dirty'],['tap','When I tap'],['off','Off']],st.stool||'auto'))}</div>`:row;
+  }).join('')}</div>`;
+}
 function openSettings(welcome){
   const st=S.settings,n=S.events.filter(e=>!e.deleted).length;
   let kb=0;try{kb=Math.round(JSON.stringify(S).length/1024);}catch(e){}
@@ -1075,7 +1355,12 @@ function openSettings(welcome){
   if(welcome) f+=`<p class="muted" style="margin-bottom:14px">Everything you log stays on this phone. You can change these details later.</p>`;
   f+=`<div class="set-sec">Baby</div>${fld('Name',`<input id="s-name" value="${esc(st.name)}" autocomplete="off">`)}${fld('Date of birth',`<input id="s-dob" type="date" value="${esc(st.dob)}">`)}${fldD('Sex, for the WHO growth curves',seg('s-sex',[['f','Girl'],['m','Boy']],st.sex))}`;
   if(welcome) f+=`<div class="two">${fld('Birth weight (kg)',txt('s-bkg','','decimal','optional'))}${fld('Birth length (cm)',txt('s-bcm','','decimal','optional'))}</div>${fld('Birth head circumference (cm)',txt('s-bhead','','decimal','optional'))}`;
-  f+=`<div class="set-sec">This phone</div>${fld('Your name on this phone',`<input id="s-dev" value="${esc(st.device)}" placeholder="e.g. Dad" autocomplete="off">`)}<p class="muted" style="margin:-6px 2px 12px">Shown on entries after you merge with your partner's phone.</p>${fldD('Language',seg('s-lang',[['en','English'],['de','Deutsch']],st.lang||'en'))}${fldD('Appearance',seg('s-theme',[['auto','Auto'],['light','Light'],['dark','Dark']],st.theme||'auto'))}${fldD('Text size',seg('s-text',[['m','Standard'],['l','Large'],['xl','Larger']],st.textSize||'m'))}${fldD('Night light (red, bigger buttons)',seg('s-nauto',[['off','Moon button only'],['on','On a schedule']],st.nightAuto?'on':'off'))}<div class="two">${fld('From',`<input id="s-nfrom" type="time" value="${esc(st.nightFrom||'21:00')}">`)}${fld('Until',`<input id="s-nto" type="time" value="${esc(st.nightTo||'07:00')}">`)}</div>`;
+  f+=`<div class="set-sec">This phone</div>${fld('Your name on this phone',`<input id="s-dev" value="${esc(st.device)}" placeholder="e.g. Dad" autocomplete="off">`)}<p class="muted" style="margin:-6px 2px 12px">Shown on entries after you merge with your partner's phone.</p>${fldD('Language',seg('s-lang',[['en','English'],['de','Deutsch']],st.lang||'en'))}${fldD('Text size',seg('s-text',[['m','Standard'],['l','Large'],['xl','Larger']],st.textSize||'m'))}`;
+  if(!welcome){
+    f+=`<div class="set-sec">Look</div>${fldD('Light or dark',seg('s-theme',[['auto','Auto'],['light','Light'],['dark','Dark']],st.theme||'auto'))}${fldD('Theme',palPicker())}<p class="muted" id="oled-note" style="margin:-4px 2px 12px"${st.palette==='oled'?'':' hidden'}>OLED black is always dark.</p>`;
+    f+=`<div class="set-sec">What you track</div><p class="muted" style="margin:-2px 2px 10px">Only for this phone. Switching something off hides it; nothing is deleted.</p>${featList(false)}`;
+  }
+  f+=`${fldD('Night light (red, bigger buttons)',seg('s-nauto',[['off','Moon button only'],['on','On a schedule']],st.nightAuto?'on':'off'))}<div class="two">${fld('From',`<input id="s-nfrom" type="time" value="${esc(st.nightFrom||'21:00')}">`)}${fld('Until',`<input id="s-nto" type="time" value="${esc(st.nightTo||'07:00')}">`)}</div>`;
   f+=`<button class="btn primary" style="width:100%" data-act="set-save">${welcome?'Start':'Save'}</button>`;
   if(!welcome){
     const sy=S.sync;
@@ -1108,7 +1393,7 @@ function openSettings(welcome){
 }
 // First run: three short steps in one sheet. All fields stay in the DOM, so saveSettings reads them as usual.
 function openWelcome(){
-  const st=S.settings,dots=n=>`<div class="ob-dots" aria-hidden="true">${[1,2,3].map(i=>`<i class="${i===n?'on':''}"></i>`).join('')}</div>`;
+  const st=S.settings,dots=n=>`<div class="ob-dots" aria-hidden="true">${[1,2,3,4].map(i=>`<i class="${i===n?'on':''}"></i>`).join('')}</div>`;
   openSheet(`<div class="ob" data-step="1">
     <section class="ob-s" data-s="1">${dots(1)}<h2>Welcome to Yupu baby</h2><p class="muted" style="margin-bottom:14px">A calm, private log for feeds, sleep and diapers. First, who are you tracking?</p>
       ${fld('Baby\'s name',`<input id="s-name" value="${esc(st.name)}" autocomplete="off">`)}${fld('Date of birth',`<input id="s-dob" type="date" value="${esc(st.dob)}">`)}${fldD('Sex, for the WHO growth curves',seg('s-sex',[['f','Girl'],['m','Boy']],st.sex))}
@@ -1117,11 +1402,14 @@ function openWelcome(){
     <section class="ob-s" data-s="2">${dots(2)}<h2>This phone</h2><p class="muted" style="margin-bottom:14px">If you and a partner both log, each phone gets a name so you can see who logged what.</p>
       ${fld('Your name on this phone',`<input id="s-dev" value="${esc(st.device)}" placeholder="e.g. Dad" autocomplete="off">`)}${fldD('Language',seg('s-lang',[['en','English'],['de','Deutsch']],st.lang||'en'))}${fldD('Text size',seg('s-text',[['m','Standard'],['l','Large'],['xl','Larger']],st.textSize||'m'))}
       <div class="foot"><button class="btn" data-act="ob-step" data-n="1">Back</button><button class="btn primary" data-act="ob-step" data-n="3">Next</button></div></section>
-    <section class="ob-s" data-s="3">${dots(3)}<h2>Your data stays yours</h2>
+    <section class="ob-s" data-s="3">${dots(3)}<h2>What do you want to track?</h2><p class="muted" style="margin-bottom:12px">Pick a start, then switch things on or off. You can change this any time in Settings.</p>
+      ${seg('s-preset',[['breast','Breastfed'],['bottle','Bottle-fed'],['mixed','Mixed']],'')}<div style="height:12px"></div>${featList(true)}
+      <div class="foot"><button class="btn" data-act="ob-step" data-n="2">Back</button><button class="btn primary" data-act="ob-step" data-n="4">Next</button></div></section>
+    <section class="ob-s" data-s="4">${dots(4)}<h2>Your data stays yours</h2>
       <ul class="ob-list"><li>${I.moon}<span><b>Works offline</b>Everything is saved on this phone. Nothing is sent anywhere unless you turn on sync.</span></li>
       <li>${I.list}<span><b>Two phones, one log</b>Automatic sync keeps both parents in step through your own private repository.</span></li>
       <li>${I.checks}<span><b>Keep a copy</b>iPhone can clear web app data in rare cases. Back up to Files now and then, or turn on sync.</span></li></ul>
-      <div class="foot"><button class="btn" data-act="ob-step" data-n="2">Back</button><button class="btn primary" data-act="set-save">Start logging</button></div>
+      <div class="foot"><button class="btn" data-act="ob-step" data-n="3">Back</button><button class="btn primary" data-act="set-save">Start logging</button></div>
       <button class="link" data-act="ob-sync">Start and set up sync</button></section></div>`);
 }
 function saveSettings(){
@@ -1129,7 +1417,8 @@ function saveSettings(){
   const name=v('s-name'),dob=v('s-dob'),sex=v('s-sex');
   if(dob&&fromInput(dob)>Date.now()) return toast('Date of birth is in the future.');
   if(name!==st.name||dob!==st.dob||sex!==st.sex){st.name=name;st.dob=dob;st.sex=sex;st.updatedAt=Date.now();markDirty('profile');}
-  st.device=v('s-dev');st.theme=v('s-theme')||'auto';st.textSize=v('s-text')||st.textSize||'m';st.lang=v('s-lang')||st.lang||'en';const sf=$('#s-syncfolder');if(sf)st.syncFolder=sf.value.trim();
+  document.querySelectorAll('#sheet [data-feat]').forEach(c=>{st.features[c.dataset.feat]=c.checked;});
+  st.device=v('s-dev');st.theme=v('s-theme')||st.theme||'auto';st.textSize=v('s-text')||st.textSize||'m';st.lang=v('s-lang')||st.lang||'en';const sf=$('#s-syncfolder');if(sf)st.syncFolder=sf.value.trim();
   const rm=$('#s-remind');if(rm)st.remind=rm.value==='on';
   const na=$('#s-nauto');if(na){st.nightAuto=na.value==='on';st.nightFrom=v('s-nfrom')||'21:00';st.nightTo=v('s-nto')||'07:00';st.nightSkipUntil=0;}
   if($('#s-bkg')&&dob){const kg=num(v('s-bkg')),cm=num(v('s-bcm')),hd=num(v('s-bhead')),d={};
@@ -1205,10 +1494,14 @@ function naraToBackup(text){
         d.ml=vol(g('[Bottle Feed] Breast Milk Volume'),g('[Bottle Feed] Breast Milk Volume Unit'))+vol(g('[Bottle Feed] Formula Volume'),g('[Bottle Feed] Formula Volume Unit'))||vol(g('[Bottle Feed] Volume'),g('[Bottle Feed] Volume Unit'));break;}
       case 'Sleep':{e.type='sleep';e.end=+g('[Sleep] End Date/time (Epoch)')||start+(+g('[Sleep] Duration (Seconds)')||0)*1000;if(!(e.end>start))continue;break;}
       case 'Diaper':{e.type='diaper';const k=g('[Diaper] Type');d.kind=k==='Dirty Wet'?'both':k==='Dirty'?'dirty':k==='Dry'?'dry':'wet';takeTemp();
-        const TX={RUN:'runny',MUCOUS:'mucousy',MUSH:'mushy',PEBBLE:'pebbly'},x=[];
-        if(g('[Diaper] Detail'))x.push(g('[Diaper] Detail').toLowerCase().split(/\s+/).join(', '));
-        if(g('[Diaper] Dirty Color'))x.push('stool '+g('[Diaper] Dirty Color').toLowerCase());
-        if(g('[Diaper] Dirty Texture'))x.push(g('[Diaper] Dirty Texture').split(/\s+/).map(w=>TX[w]||w.toLowerCase()).join(' and '));
+        // Colour and texture become stool details; anything without a match stays in the note.
+        const x=[],dt=g('[Diaper] Detail').split(/\s+/).filter(Boolean),col=g('[Diaper] Dirty Color').toLowerCase().replace(/_/g,' ').trim(),tx=g('[Diaper] Dirty Texture').split(/\s+/).filter(Boolean);
+        const rest=dt.filter(w=>{if(/rash/i.test(w)){d.rash=true;return false;}return true;});if(rest.length)x.push(rest.join(', ').toLowerCase());
+        if(col){const k=/dark\s*green/.test(col)?'dkgreen':/mustard/.test(col)?'mustard':/yellow/.test(col)?'yellow':/orange/.test(col)?'orange':/green/.test(col)?'green':/brown|tan/.test(col)?'brown':/black/.test(col)?'black':/red|blood/.test(col)?'red':/white|grey|gray|pale|clay/.test(col)?'pale':'';
+          if(k&&hasStool(d))d.color=k;else x.push('stool '+col);}
+        const TC={RUN:'loose',RUNNY:'loose',WATERY:'watery',MUSH:'soft',MUSHY:'soft',SOFT:'soft',SEEDY:'seedy',PEBBLE:'hard',PEBBLY:'hard',HARD:'hard',FORMED:'formed',SOLID:'formed'},ux=[];
+        tx.forEach(w=>{const W=w.toUpperCase();if(/MUCOUS|MUCUS/.test(W)&&hasStool(d)){d.x=[...(d.x||[]),'mucus'];}else if(TC[W]&&hasStool(d)&&!d.cons)d.cons=TC[W];else ux.push(w.toLowerCase());});
+        if(ux.length)x.push(ux.join(' and '));
         if(note)x.push(note);note=x.join(', ');break;}
       case 'Growth':{e.type='growth';const dt=new Date(start);dt.setHours(12,0,0,0);e.start=dt.getTime();
         const w=+g('[Growth] Weight'),h=+g('[Growth] Height'),hd=+g('[Growth] Head Size');
@@ -1216,13 +1509,13 @@ function naraToBackup(text){
         if(h)d.cm=/in/i.test(g('[Growth] Height Unit'))?Math.round(h*25.4)/10:h;
         if(hd)d.head=/in/i.test(g('[Growth] Head Size Unit'))?Math.round(hd*25.4)/10:hd;
         if(!d.kg&&!d.cm&&!d.head)continue;break;}
-      case 'Medical':{e.type='other';const med=g('[Medical] Medication');d.label=med?'Medication: '+med:'Medical';
+      case 'Medical':{const med=g('[Medical] Medication');if(med){e.type='med';Object.assign(d,parseDose(med));}else{e.type='other';d.label='Medical';}
         const t=+g('[Medical] Temperature');if(t)d.temp=/f/i.test(g('[Medical] Temperature Unit'))?Math.round((t-32)/1.8*10)/10:t;else takeTemp();break;}
       case 'Vaccine':{e.type='other';const v=g('[Vaccine] Vaccine').split(/\n+/).map(s=>s.trim()).filter(Boolean).join(', ');d.label=v?'Vaccine: '+v:'Vaccine';break;}
       case 'Routine':{e.type='other';d.label=g('[Routine] Routine')||'Routine';break;}
-      case 'Pump':{e.type='other';d.label='Pumping';const x=[],l=g('[Pump] Left Volume'),rr=g('[Pump] Right Volume'),tv=g('[Pump] Total Volume'),s=+g('[Pump] Duration (Seconds)');
-        if(l)x.push(`left ${vol(l,g('[Pump] Left Volume Unit'))} ml`);if(rr)x.push(`right ${vol(rr,g('[Pump] Right Volume Unit'))} ml`);if(tv&&!l&&!rr)x.push(`${vol(tv,g('[Pump] Total Volume Unit'))} ml`);if(s)x.push(`${Math.round(s/60)} min`);
-        if(note)x.push(note);note=x.join(', ');break;}
+      case 'Pump':{e.type='pump';const l=g('[Pump] Left Volume'),rr=g('[Pump] Right Volume'),tv=g('[Pump] Total Volume'),s=+g('[Pump] Duration (Seconds)');
+        if(l)d.l=vol(l,g('[Pump] Left Volume Unit'));if(rr)d.r=vol(rr,g('[Pump] Right Volume Unit'));
+        d.ml=d.l||d.r?(d.l||0)+(d.r||0):tv?vol(tv,g('[Pump] Total Volume Unit')):0;if(!d.ml)delete d.ml;if(s)d.min=Math.round(s/60);break;}
       default:{e.type='other';d.label=type;}
     }
     if(note)d.note=note;
@@ -1241,7 +1534,7 @@ function toCSV(){
 // Each month of entries is one file (yupu/2026-09.json) plus yupu/profile.json.
 // Pull: list the folder, fetch only files whose version changed, merge by id + updatedAt.
 // Push: rewrite only months changed on this phone, with the file's version as a lock; on a clash, re-pull and retry.
-const APP_VERSION='3.2.1',APP_DATE='2026-10-22',SYNC_DIR='yupu';
+const APP_VERSION='3.3.0',APP_DATE='2026-11-26',SYNC_DIR='yupu';
 const monthKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1);};
 let syncing=false,syncTimer=null,syncAgain=false;
 function markDirty(...keys){if(!S.sync)return;S.sync.dirty=S.sync.dirty||{};keys.forEach(k=>{if(k)S.sync.dirty[k]=1;});scheduleSync();}
@@ -1452,7 +1745,6 @@ function openAdjust(kind){
     <div class="presets ago">${[5,10,15,20,30,45].map(m=>`<button type="button" class="chip" data-act="ago" data-t="adj-start" data-m="${m}">${m} min ago</button>`).join('')}</div>
     <div class="foot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="adj-save" data-k="${kind}">Save</button></div>`);
 }
-const isVit=e=>e.type==='other'&&/vitamin/i.test((e.data.label||'')+' '+(e.data.note||''));
 
 /* ---------- native bridge ----------
    Runs only inside the iOS app shell (Capacitor). On the web PWA, window.Capacitor
@@ -1476,7 +1768,7 @@ async function scheduleVitReminder(){
 }
 async function cancelVitReminder(){const LN=CAP()?.Plugins?.LocalNotifications;if(!LN)return;try{await LN.cancel({notifications:[{id:VIT_NOTIF_ID}]});}catch(e){}}
 async function refreshVitReminder(){
-  if(!nativeOn()||!S.settings.remind){await cancelVitReminder();return;}
+  if(!nativeOn()||!S.settings.remind||!feat('daily')){await cancelVitReminder();return;}
   const given=live().find(e=>isVit(e)&&e.start>=dayStart(Date.now()));
   if(given)await cancelVitReminder();else await scheduleVitReminder();
 }
@@ -1488,8 +1780,10 @@ function nightWindowActive(ts=Date.now()){const st=S.settings;if(!st.nightAuto)r
 function nightWindowEnd(ts=Date.now()){const b=minsOf(S.settings.nightTo),d=new Date(ts);d.setHours(Math.floor(b/60),b%60,0,0);if(d.getTime()<=ts)d.setDate(d.getDate()+1);return d.getTime();}
 function nightActive(){const st=S.settings;return !!st.night||(nightWindowActive()&&!((st.nightSkipUntil||0)>Date.now()));}
 function applyTheme(){
-  const st=S.settings,nightOn=nightActive(),th=nightOn?'red':st.theme==='auto'?(mq.matches?'dark':'light'):st.theme;
-  document.documentElement.dataset.theme=th;document.documentElement.dataset.text=st.textSize||'m';
+  const st=S.settings,nightOn=nightActive(),pal=PALS.some(p=>p[0]===st.palette)?st.palette:'calm',th=nightOn?'red':pal==='oled'?'dark':baseMode();
+  const R=document.documentElement;R.dataset.theme=th;R.dataset.pal=pal;R.dataset.text=st.textSize||'m';
+  // Remembered for the next launch, so the first frame already has the right colours (red at night).
+  try{localStorage.setItem('yupu-look',JSON.stringify({p:pal,m:st.theme||'auto',ru:nightOn?(st.night?Date.now()+365*864e5:nightWindowEnd()):0}));}catch(e){}
   const bg=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   $('meta[name="theme-color"]').setAttribute('content',bg||'#F3F5F9');
   const b=$('#nightBtn');b.classList.toggle('on',nightOn);b.setAttribute('aria-pressed',nightOn?'true':'false');
@@ -1525,7 +1819,25 @@ document.addEventListener('click',ev=>{
     case 'new-food': openEditor('solids',null,t.dataset.food);break;
     case 'edit':{const e=S.events.find(x=>x.id===t.dataset.id);if(e)openEditor(e.type,e);break;}
     case 'add-any': openChooser();break;
-    case 'seg':{t.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===t));$('#'+t.dataset.group).value=t.dataset.val;break;}
+    case 'seg':{t.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===t));$('#'+t.dataset.group).value=t.dataset.val;
+      if(t.dataset.group==='f-kind'){const p=$('#f-stool');if(p)p.classList.toggle('open',t.dataset.val==='dirty'||t.dataset.val==='both');}
+      if(t.dataset.group==='s-theme')lookChange(()=>{S.settings.theme=t.dataset.val;});
+      if(t.dataset.group==='s-stool'){S.settings.stool=t.dataset.val;save();}
+      if(t.dataset.group==='s-preset'){const P={breast:{nurse:1,bottle:0,pump:0},bottle:{nurse:0,bottle:1,pump:0},mixed:{nurse:1,bottle:1,pump:1}}[t.dataset.val];
+        Object.entries(P).forEach(([k,on])=>{const c=$(`#sheet [data-feat="${k}"]`);if(c)c.checked=!!on;});}
+      break;}
+    // Single choice that can be tapped again to clear it (stool colour, consistency, dose unit…).
+    case 'pick':{const was=t.classList.contains('on'),g=t.dataset.group,keep=g==='f-munit';if(was&&keep)break;
+      document.querySelectorAll(`[data-group="${g}"]`).forEach(b=>b.classList.toggle('on',b===t&&!was));$('#'+g).value=was?'':t.dataset.val;haptic('Light');break;}
+    case 'diaper-kind':{const k=t.dataset.kind,p=$('#f-stool');$('#f-kind').value=k;haptic('Light');
+      if(k!=='wet'&&p&&((S.settings.stool||'auto')==='auto'||p.classList.contains('open'))){
+        t.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===t));
+        if(!p.classList.contains('open')){p.classList.add('open');setTimeout(()=>p.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'}),60);}
+        break;}
+      saveEditor();break;}
+    case 'stool-open':{const p=$('#f-stool');if(p){p.classList.toggle('open');t.classList.toggle('on',p.classList.contains('open'));}break;}
+    case 'stool-skip': if(ed){ed._nostool=true;saveEditor();}break;
+    case 'med-name':{const el=$('#f-mname');el.value=t.dataset.v;medFill(t.dataset.v);break;}
     case 'step':{const el=$('#'+t.dataset.t);el.value=Math.max(0,(Math.round(num(el.value))||0)+(+t.dataset.d));break;}
     case 'setv': $('#'+t.dataset.t).value=t.dataset.v;break;
     case 'tog': t.classList.toggle('on');break;
@@ -1535,11 +1847,17 @@ document.addEventListener('click',ev=>{
     case 'start-ago': startAt(t.dataset.k,t.dataset.side,n-(+t.dataset.m)*6e4);break;
     case 'start-at': startAt(t.dataset.k,t.dataset.side,fromInput($('#start-at').value));break;
     case 'bar': toast(t.dataset.tip);break;
-    case 'ob-step':{const ob=t.closest('.ob');if(ob){ob.dataset.step=t.dataset.n;$('#sheet').scrollTop=0;}break;}
+    case 'ob-step':{const ob=t.closest('.ob');if(ob){ob.dataset.step=t.dataset.n;$('#sheet').scrollTop=0;
+      // Solids start off for a baby under about 5 months, unless switched on by hand.
+      const sw=$('#sheet [data-feat="solids"]'),dob=fromInput(($('#s-dob')||{}).value);
+      if(t.dataset.n==='3'&&sw&&!sw.dataset.touched)sw.checked=!(dob>0)||daysBetween(dob,Date.now())>=150;}break;}
+    case 'pal': lookChange(()=>{S.settings.palette=t.dataset.v;});haptic('Light');break;
     case 'ob-sync': saveSettings();openSettings(false);setTimeout(()=>{const r=$('#s-repo');if(r)r.scrollIntoView({block:'center'});},350);break;
     case 'reload': location.reload();break;
     case 'adj-save':{const ns=fromInput($('#adj-start').value);if(isNaN(ns)){toast('Enter a valid time.');break;}if(setTimerStart(t.dataset.k,ns))closeSheet();break;}
-    case 'vit':{haptic('Medium');const e={id:uid(),type:'other',start:n,data:{label:'Vitamin D'}};upsert(e);render();refreshVitReminder();toast('Vitamin D logged',()=>{removeEv(e.id);refreshVitReminder();});break;}
+    case 'daily':{haptic('Medium');const e=medRepeat(t.dataset.name);upsert(e);render();refreshVitReminder();toast(`${e.data.name} logged`,()=>{removeEv(e.id);refreshVitReminder();});break;}
+    case 'solids-on': S.settings.features.solids=true;S.prefs.solidsAsked=1;save();render();toast('Solids turned on');break;
+    case 'solids-later': S.prefs.solidsAsked=1;save();render();break;
     case 'sync-on': syncTurnOn();break;
     case 'sync-off': syncTurnOff();break;
     case 'sync-auto': autoSync();break;
@@ -1548,8 +1866,8 @@ document.addEventListener('click',ev=>{
     case 'guard-yes':{const x=S.active[t.dataset.k];if(x){x.ack=n+(t.dataset.k==='sleep'?2*36e5:30*6e4);touchActive(t.dataset.k);save();render();}break;}
     case 'guard-end': openEndAt(t.dataset.k);break;
     case 'end-save': if(endTimerAt(t.dataset.k,fromInput($('#end-at').value)))closeSheet();break;
-    case 'med-again':{const o=S.events.find(x=>x.id===t.dataset.id);if(o){const e={id:uid(),type:'other',start:n,data:{label:o.data.label}};upsert(e);render();toast(`${medName(o)} logged at ${hm(n)}`,()=>removeEv(e.id));}break;}
-    case 'hist-restore':{const e=S.events.find(x=>x.id===t.dataset.id),v=e&&e.hist&&e.hist[+t.dataset.i];if(v){upsert({...e,start:v.start,end:v.end,data:v.data});closeSheet();render();toast('Earlier version restored');}break;}
+    case 'med-again':{const o=S.events.find(x=>x.id===t.dataset.id);if(o){const e=medRepeat(medName(o),o);upsert(e);render();toast(`${e.data.name} logged at ${hm(n)}`,()=>removeEv(e.id));}break;}
+    case 'hist-restore':{const e=S.events.find(x=>x.id===t.dataset.id),v=e&&e.hist&&e.hist[+t.dataset.i];if(v){const back={...e,type:v.type||e.type,start:v.start,end:v.end,data:v.data};if(back.type!==e.type)back.keep=1;upsert(back);closeSheet();render();toast('Earlier version restored');}break;}
     case 'deleted': openDeleted();break;
     case 'del-restore':{const e=S.events.find(x=>x.id===t.dataset.id);if(e&&e.deleted&&e.prev){const p={...e.prev};delete p.deleted;upsert(p);render();openDeleted();toast('Entry restored');}break;}
     case 'health': openHealth();break;
@@ -1557,7 +1875,6 @@ document.addEventListener('click',ev=>{
     case 'health-fixall':{const ids=[...new Set(healthScan().filter(x=>x.fix).map(x=>x.fix))];ids.forEach(id=>removeEv(id));render();openHealth();toast(`${ids.length} ${ids.length===1?'entry':'entries'} removed. Restore from Recently deleted if needed.`);break;}
     case 'rp-pick': restoreFrom(t.dataset.k);break;
     case 'ed-save': saveEditor();break;
-    case 'diaper-save': haptic('Light');$('#f-kind').value=t.dataset.kind;saveEditor();break;
     case 'ed-del':{if(!ed||!confirm(tr('Delete this entry?')))break;const old=removeEv(ed.id);closeSheet();render();toast('Entry deleted',()=>{if(old)upsert({...old});});break;}
     case 'hist-filter': histFilter=t.dataset.v;render();break;
     case 'hist-more': histDays+=7;render();break;
@@ -1583,6 +1900,13 @@ document.addEventListener('click',ev=>{
       break;
   }
 });
+document.addEventListener('change',ev=>{
+  const c=ev.target;if(!c||!c.dataset||!c.dataset.feat)return;c.dataset.touched='1';
+  if(c.closest('.ob'))return;
+  S.settings.features[c.dataset.feat]=c.checked;save();render();haptic('Light');
+  const sub=document.querySelector(`.sw-sub[data-for="${c.dataset.feat}"]`);if(sub)sub.hidden=!c.checked;
+  if(c.dataset.feat==='daily')refreshVitReminder();
+});
 $('#importFile').addEventListener('change',async ev=>{
   const files=[...ev.target.files];ev.target.value='';if(!files.length)return;
   let added=0,updated=0,dupes=0,bad=0;
@@ -1600,6 +1924,8 @@ $('#importFile').addEventListener('change',async ev=>{
 $('#nightBtn').innerHTML=I.moon;$('#gearBtn').innerHTML=I.gear;
 (async()=>{
 S=await loadState();
+migrateEntries();
+if(!S.settings.v33){S.settings.v33=1;if(S.events.some(e=>!e.deleted&&e.type==='pump'))S.settings.features.pump=true;save();}
 applyTheme();render();
 if(!S.settings.dob&&!S.events.length) openWelcome();
 refreshVitReminder();
