@@ -84,7 +84,7 @@ New app icon in the shared high-tech style (Footprints). To see it on the home s
 The app has no build step: the files in this folder are what runs on the phone.
 - `index.html` – page skeleton
 - `css/app.css` – all styling (light, dark and the red night light)
-- `js/app.js` – the app; `js/i18n-de.js` – German interface; `js/who.js` – WHO growth tables
+- `js/app.js` – the app; `js/i18n-de.js` – German interface; `js/who.js` – WHO growth tables; `js/boot.js` – sets the theme before the first frame
 - `fonts/outfit.woff2` – display font for numbers and headings (SIL Open Font License, see `fonts/OFL.txt`)
 
 Tests: `npm install`, then `npm test` (Playwright, Chromium at iPhone size). They also run on GitHub for every push.
@@ -122,3 +122,19 @@ No data changes; works alongside phones on 3.3.
 - **Lighter cards:** in light themes cards are lifted by their shadow alone, without an outline.
 - **Taps you can feel** on iPhones with iOS 18 or later, where Safari allows it.
 - Under the hood: the screen is now updated in place, so only what changed moves. iPhone's Reduce Motion turns the animations off; the red night light stays flat and dim (no glow, no rolling digits).
+
+## v3.5.0 (27 Nov 2026) — security
+No data changes; works alongside phones on 3.3 and 3.4 (unless you turn on encryption, see below).
+- **End-to-end encryption** (Settings → Encryption, off until you turn it on): a passphrase encrypts everything that leaves the phone — sync files, running timers, profile, restore points and backup files — so GitHub, and anyone who gets hold of a backup file or the sync token, only sees scrambled data. AES-GCM 256 with a key from PBKDF2-SHA256 (600,000 iterations); each file has its own random IV. The passphrase stays on the phone and is never synced. If it is lost, encrypted files can't be opened. Encrypted backups ask for their passphrase when imported on a phone that doesn't have it.
+  **Switching over:** update both phones to 3.5 first. Turn encryption on on the phone with the full history; it rewrites every sync file encrypted. Then on the other phone, Settings → Encryption, enter the same passphrase twice and turn it on (it checks the passphrase against the encrypted files). Until then the second phone pauses sync with a message instead of writing unencrypted files over encrypted ones. A wrong passphrase also pauses sync and never overwrites anything.
+  **Older versions stay in GitHub's history:** the private repository keeps every earlier, unencrypted version of the files, and older restore points stay unencrypted. For a clean start, create a new private repository after turning on encryption on both phones, point sync at it (Settings → Automatic sync → Turn off or change token, then turn on with the new repository), and delete the old one.
+- **Page security policy:** the app only runs its own scripts and only talks to GitHub's API; anything else is blocked by the browser. The small first-frame theme script moved into `js/boot.js` for this.
+- **Data from outside is checked** before it is merged: backups, Nara imports, the other phone's sync files, running timers, the profile and restore points. Entries with an unknown type, a broken id or time, or fields of the wrong kind are left out (the import message says how many), text is capped, and fields the app looks up only keep known values.
+- **GitHub token:** turning sync on warns when the token is a classic one or can also reach other private repositories, and Settings explains how to make a narrow fine-grained token with an expiry date. In the iOS app shell the token and the passphrase are kept in the iPhone Keychain.
+
+### Protecting the code on GitHub
+Whatever is on `main` runs on both phones with access to all their data, so protect it (on github.com):
+1. Your account → Settings → Password and authentication → turn on **two-factor authentication** (an authenticator app or a passkey).
+2. The `yupu` repository → Settings → Rules → Rulesets → **New branch ruleset**: name it "main", Enforcement status **Active**, Target branches → Add target → **Include default branch**. Tick **Restrict deletions**, **Require a pull request before merging**, **Require status checks to pass** (add the check **test**) and **Block force pushes**. Save.
+3. Repository → Settings → Collaborators: only people you trust with the data. Settings → Actions → General → Workflow permissions: **Read repository contents**.
+4. For the data repository: keep it private, with no collaborators, and use one fine-grained token per phone limited to it.

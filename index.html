@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Yupu baby">
 <meta name="theme-color" content="#F3F5F9">
-<script>/* First frame in the chosen theme (and red at night), before the app has loaded its data. */try{var l=JSON.parse(localStorage.getItem('yupu-look')||'null'),r=document.documentElement;if(l){r.dataset.pal=l.p||'calm';r.dataset.theme=l.ru>Date.now()?'red':l.p==='oled'?'dark':(l.m==='light'||l.m==='dark')?l.m:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');}}catch(e){}</script>
+<script src="js/boot.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>">

@@ -251,3 +251,31 @@ DE_RX.push(
  [/^(\d+h(?: \d+m)?) ago$/,'vor $1'],
  [/^Move (.+) (up|down)$/,(m,a,b)=>`${tr(a)} nach ${b==='up'?'oben':'unten'}`]
 );
+// Strings added in 3.5: encryption, token advice, checking data.
+Object.assign(DE,{
+'Encryption':'Verschlüsselung',
+"Encrypt sync files and backup files with a passphrase, so GitHub, and anyone who gets a backup file, only sees scrambled data. Use the same passphrase on both phones. If it's lost, encrypted files can't be opened, so keep it somewhere safe.":'Sync-Dateien und Sicherungsdateien mit einer Passphrase verschlüsseln, damit GitHub und alle, die an eine Sicherungsdatei kommen, nur unlesbare Daten sehen. Auf beiden Handys dieselbe Passphrase verwenden. Geht sie verloren, lassen sich verschlüsselte Dateien nicht mehr öffnen – also sicher aufbewahren.',
+'Passphrase (at least 10 characters)':'Passphrase (mindestens 10 Zeichen)','e.g. four random words':'z. B. vier zufällige Wörter','Passphrase again':'Passphrase wiederholen','Turn on encryption':'Verschlüsselung einschalten',
+'Encryption is on. Sync files and new backups from this phone are encrypted.':'Verschlüsselung ist an. Sync-Dateien und neue Sicherungen von diesem Handy werden verschlüsselt.',
+'Forget passphrase on this phone':'Passphrase auf diesem Handy vergessen','Turn off encryption':'Verschlüsselung ausschalten',
+'Encryption is on, but this phone has no passphrase. Sync is paused until you enter it.':'Verschlüsselung ist an, aber auf diesem Handy fehlt die Passphrase. Die Synchronisierung pausiert, bis du sie eingibst.',
+'Passphrase':'Passphrase','the passphrase used on the other phone':'die Passphrase vom anderen Handy','Use passphrase':'Passphrase verwenden',
+'Use a fine-grained token: Repository access "Only select repositories" with just this one, Permissions → Contents: Read and write, and an expiry date (90 days is a good balance). When it expires, turn sync off and on with a new one.':'Verwende einen Fine-grained-Token: Repository-Zugriff „Only select repositories" nur mit diesem einen, Berechtigungen → Contents: Read and write, und ein Ablaufdatum (90 Tage sind ein guter Mittelweg). Läuft er ab, Synchronisierung aus- und mit einem neuen Token wieder einschalten.',
+'Use a passphrase of at least 10 characters.':'Verwende eine Passphrase mit mindestens 10 Zeichen.','The two passphrases are not the same.':'Die beiden Passphrasen stimmen nicht überein.','Checking…':'Wird geprüft…',
+'That passphrase does not open the files the other phone encrypted.':'Diese Passphrase öffnet die vom anderen Handy verschlüsselten Dateien nicht.',
+'Could not check the sync files. Try again when online.':'Die Sync-Dateien konnten nicht geprüft werden. Versuche es online erneut.',
+'Passphrase saved on this phone':'Passphrase auf diesem Handy gespeichert','Encryption is on':'Verschlüsselung ist an','Encryption turned off':'Verschlüsselung ausgeschaltet',
+'Passphrase removed from this phone':'Passphrase von diesem Handy entfernt','Enter the passphrase in Settings → Encryption first.':'Gib zuerst die Passphrase unter Einstellungen → Verschlüsselung ein.',
+'That passphrase does not open the encrypted backup. Nothing was imported.':'Diese Passphrase öffnet die verschlüsselte Sicherung nicht. Nichts wurde importiert.',
+'Turn off encryption? Sync files will be written unencrypted again. Turn it off on both phones.':'Verschlüsselung ausschalten? Sync-Dateien werden dann wieder unverschlüsselt geschrieben. Auf beiden Handys ausschalten.',
+'Remove the passphrase from this phone? Sync pauses until you enter it again.':'Passphrase von diesem Handy entfernen? Die Synchronisierung pausiert, bis du sie wieder eingibst.',
+'This backup is encrypted. Enter its passphrase:':'Diese Sicherung ist verschlüsselt. Gib ihre Passphrase ein:',
+'This is a classic token, which can reach all your repositories. A fine-grained token limited to this one repository (Contents: Read and write) is safer. Use this token anyway?':'Das ist ein klassischer Token, der alle deine Repositories erreicht. Ein Fine-grained-Token nur für dieses eine Repository (Contents: Read and write) ist sicherer. Diesen Token trotzdem verwenden?',
+'Sync files are encrypted. Enter the passphrase in Settings → Encryption.':'Die Sync-Dateien sind verschlüsselt. Gib die Passphrase unter Einstellungen → Verschlüsselung ein.',
+'The passphrase on this phone does not open the sync files. Check it in Settings → Encryption.':'Die Passphrase auf diesem Handy öffnet die Sync-Dateien nicht. Prüfe sie unter Einstellungen → Verschlüsselung.',
+'A sync file could not be read. Nothing was changed.':'Eine Sync-Datei konnte nicht gelesen werden. Nichts wurde geändert.'
+});
+DE_RX.push(
+ [/^This token can also reach (\d+) other private (repository|repositories)\. Limit it to the one data repository in GitHub's token settings\. Use this token anyway\?$/,(m,a)=>`Dieser Token erreicht noch ${a} weitere${a==='1'?'s':''} private${a==='1'?'s':''} Repositor${a==='1'?'y':'ies'}. Beschränke ihn in den Token-Einstellungen von GitHub auf das eine Daten-Repository. Diesen Token trotzdem verwenden?`]
+);
+DE_PH.unshift(['unreadable entries left out','unlesbare Einträge ausgelassen'],['unreadable entry left out','unlesbarer Eintrag ausgelassen']);

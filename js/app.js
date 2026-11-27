@@ -52,8 +52,8 @@ const I = {
 /* ---------- state ---------- */
 const ORDER0=['nurse','bottle','sleep','diaper','solids','pump','med'];
 const defFeatures=()=>({nurse:true,bottle:true,pump:false,sleep:true,diaper:true,solids:true,med:true,daily:true,temp:true,growth:true,checks:true,insights:true});
-function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',palette:'calm',textSize:'m',night:false,nightAuto:false,nightFrom:'21:00',nightTo:'07:00',nightSkipUntil:0,lang:'en',syncFolder:'',remind:false,features:defFeatures(),stool:'auto',daily:['Vitamin D'],order:ORDER0.slice(),updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0,activeUpd:{nurse:0,sleep:0},sync:{repo:'',token:'',on:false,shas:{},dirty:{},last:0,err:''}};}
-function hydrate(d){const b=blank(),ds=d.settings||{};return {...b,...d,settings:{...b.settings,...ds,features:{...b.settings.features,...(ds.features||{})},daily:Array.isArray(ds.daily)?ds.daily:b.settings.daily,order:[...new Set([...(Array.isArray(ds.order)?ds.order:[]).filter(k=>ORDER0.includes(k)),...ORDER0])]},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},sync:{...b.sync,...(d.sync||{})},activeUpd:{...b.activeUpd,...(d.activeUpd||{})},events:Array.isArray(d.events)?d.events:[]};}
+function blank(){return {settings:{name:'',dob:'',sex:'',device:'',theme:'auto',palette:'calm',textSize:'m',night:false,nightAuto:false,nightFrom:'21:00',nightTo:'07:00',nightSkipUntil:0,lang:'en',syncFolder:'',remind:false,features:defFeatures(),stool:'auto',daily:['Vitamin D'],order:ORDER0.slice(),updatedAt:0},events:[],active:{nurse:null,sleep:null},prefs:{ml:120,kind:'breastmilk',unit:'tsp'},lastBackup:0,lastImport:0,enc:{on:false,pass:'',salt:''},activeUpd:{nurse:0,sleep:0},sync:{repo:'',token:'',on:false,shas:{},dirty:{},last:0,err:''}};}
+function hydrate(d){const b=blank(),ds=d.settings||{};return {...b,...d,settings:{...b.settings,...ds,features:{...b.settings.features,...(ds.features||{})},daily:Array.isArray(ds.daily)?ds.daily:b.settings.daily,order:[...new Set([...(Array.isArray(ds.order)?ds.order:[]).filter(k=>ORDER0.includes(k)),...ORDER0])]},active:{...b.active,...d.active},prefs:{...b.prefs,...d.prefs},sync:{...b.sync,...(d.sync||{})},enc:{...b.enc,...(d.enc||{})},activeUpd:{...b.activeUpd,...(d.activeUpd||{})},events:Array.isArray(d.events)?d.events:[]};}
 const feat=k=>!S||!S.settings||!S.settings.features||S.settings.features[k]!==false;
 const feedsOn=()=>feat('nurse')||feat('bottle');
 function loadLS(key=KEY){try{const raw=localStorage.getItem(key);if(raw)return hydrate(JSON.parse(raw));}catch(e){}return null;}
@@ -1536,6 +1536,56 @@ function moveOrder(k,d){
   if(!reduced())[...box.children].forEach(r=>{const dy=(before.get(r.dataset.key)||0)-r.getBoundingClientRect().top;if(dy&&r.animate)r.animate([{transform:`translateY(${dy}px)`},{transform:'none'}],{duration:380,easing:'cubic-bezier(.2,.9,.25,1.05)'});});
   const btn=box.querySelector(`[data-act="ord"][data-v="${k}"][data-d="${d}"]`)||box.querySelector(`[data-act="ord"][data-v="${k}"]:not([disabled])`);if(btn)btn.focus();
 }
+// Settings → Encryption: a passphrase for sync files and backup files, the same on both phones.
+function encSection(){
+  const e=S.enc,pw=(id,ph)=>`<input id="${id}" type="password" placeholder="${ph}" autocomplete="new-password" autocapitalize="off" spellcheck="false">`;
+  let f=`<div class="set-sec">Encryption</div>`;
+  if(e.on&&encPass())return f+`<div class="syncbox enc-on"><span>Encryption is on. Sync files and new backups from this phone are encrypted.</span></div>
+    <div class="stack"><button class="btn small" data-act="enc-forget">Forget passphrase on this phone</button><button class="btn small danger" data-act="enc-off">Turn off encryption</button></div>`;
+  if(e.on)return f+`<div class="syncbox err"><span>Encryption is on, but this phone has no passphrase. Sync is paused until you enter it.</span></div>
+    ${fld('Passphrase',pw('e-pass','the passphrase used on the other phone'))}<button class="btn primary" style="width:100%" data-act="enc-use">Use passphrase</button>
+    <button class="link" style="color:var(--danger)" data-act="enc-off">Turn off encryption</button>`;
+  return f+`<p class="muted" style="margin-bottom:10px">Encrypt sync files and backup files with a passphrase, so GitHub, and anyone who gets a backup file, only sees scrambled data. Use the same passphrase on both phones. If it's lost, encrypted files can't be opened, so keep it somewhere safe.</p>
+    ${fld('Passphrase (at least 10 characters)',pw('e-pass','e.g. four random words'))}${fld('Passphrase again',pw('e-pass2',''))}
+    <button class="btn primary" style="width:100%" data-act="enc-on">Turn on encryption</button>`;
+}
+// Checks a passphrase against a sealed file already in the sync repository, and returns that file's salt.
+async function encProbe(pass){
+  if(!S.sync.on||!ghToken())return {salt:''};
+  const lr=await gh('/contents/'+SYNC_DIR);if(!lr.ok)return {salt:''};
+  const list=(await lr.json()).filter(x=>x.type==='file'&&/\.json$/.test(x.name)).sort((a,b)=>(a.name==='profile.json'?-1:0)-(b.name==='profile.json'?-1:0));
+  for(const f of list.slice(0,4)){
+    const fr=await gh('/contents/'+SYNC_DIR+'/'+f.name,{accept:'application/vnd.github.raw+json'});if(!fr.ok)continue;
+    const txt=await fr.text();let o;try{o=JSON.parse(txt);}catch(e){continue;}
+    if(isSealed(o)){await openText(txt,pass);return {salt:o.salt};}
+  }
+  return {salt:''};
+}
+async function encTurnOn(use){
+  const p=($('#e-pass')||{}).value||'',p2=($('#e-pass2')||{}).value;
+  if(p.length<10)return toast('Use a passphrase of at least 10 characters.');
+  if(!use&&p!==p2)return toast('The two passphrases are not the same.');
+  toast('Checking…');
+  let salt=S.enc.salt;
+  try{const pr=await encProbe(p);if(pr.salt)salt=pr.salt;}
+  catch(e){return toast(e instanceof EncError&&e.code==='passphrase'?'That passphrase does not open the files the other phone encrypted.':'Could not check the sync files. Try again when online.');}
+  if(!salt)salt=newSalt();
+  const where=await secretSet('pass',p);
+  S.enc={on:true,pass:where==='keychain'?'':p,salt};
+  // Rewrite everything this phone syncs, now sealed.
+  if(S.sync.on){S.sync.dirty=S.sync.dirty||{};new Set(S.events.map(e=>monthKey(e.start))).forEach(k=>S.sync.dirty[k]=1);S.sync.dirty.profile=1;S.sync.dirty.active=1;S.sync.err='';}
+  save();openSettings(false);toast(use?'Passphrase saved on this phone':'Encryption is on');if(S.sync.on)scheduleSync(500);
+}
+function encTurnOff(){
+  if(!confirm(tr('Turn off encryption? Sync files will be written unencrypted again. Turn it off on both phones.')))return;
+  secretSet('pass','');keyCache.clear();S.enc={on:false,pass:'',salt:''};
+  if(S.sync.on){new Set(S.events.map(e=>monthKey(e.start))).forEach(k=>S.sync.dirty[k]=1);S.sync.dirty.profile=1;S.sync.dirty.active=1;S.sync.err='';scheduleSync(500);}
+  save();openSettings(false);toast('Encryption turned off');
+}
+function encForget(){
+  if(!confirm(tr('Remove the passphrase from this phone? Sync pauses until you enter it again.')))return;
+  secretSet('pass','');keyCache.clear();S.enc.pass='';save();openSettings(false);toast('Passphrase removed from this phone');
+}
 function openSettings(welcome){
   const st=S.settings,n=S.events.filter(e=>!e.deleted).length;
   let kb=0;try{kb=Math.round(JSON.stringify(S).length/1024);}catch(e){}
@@ -1556,15 +1606,17 @@ function openSettings(welcome){
     f+=`<div class="set-sec">Automatic sync</div>`;
     if(sy.on){
       f+=`<div class="syncbox ${sy.err?'err':''}"><span id="syncStatus">${esc(syncStatus())}</span><button class="btn small" data-act="sync-auto">Sync now</button></div>
-        <p class="muted" style="margin-bottom:10px">Repository ${esc(sy.repo)}, token ending …${esc(sy.token.slice(-4))}. Syncs when the app opens, after each entry and every 30 seconds while open. Running sleep and feed timers show on both phones, and either phone can stop them.</p>
+        <p class="muted" style="margin-bottom:10px">Repository ${esc(sy.repo)}, token ending …${esc(ghToken().slice(-4))}. Syncs when the app opens, after each entry and every 30 seconds while open. Running sleep and feed timers show on both phones, and either phone can stop them.</p>
         <div class="stack"><button class="btn small" data-act="restore-points">Restore points</button><button class="btn small" data-act="sync-off">Turn off or change token</button></div>`;
     } else {
       f+=`<p class="muted" style="margin-bottom:10px">Keeps both phones in step through your private GitHub repository. Logging still works offline.</p>
         ${fld('Repository',`<input id="s-repo" value="${esc(sy.repo)}" placeholder="username/my-app-data" autocomplete="off" autocapitalize="off" spellcheck="false">`)}
         ${fld('Access token for this phone',`<input id="s-token" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false">`)}
         <button class="btn primary" style="width:100%" data-act="sync-on">Test and turn on</button>
-        <p class="muted" style="margin:10px 2px 0">The token is kept only on this phone, in the app's own storage, and is sent only to GitHub. Give it access to the one data repository and nothing else. Turning sync off removes it from the phone.</p>`;
+        <p class="muted" style="margin:10px 2px 0">The token is kept only on this phone, in the app's own storage, and is sent only to GitHub. Give it access to the one data repository and nothing else. Turning sync off removes it from the phone.</p>
+        <p class="muted" style="margin:8px 2px 0">Use a fine-grained token: Repository access "Only select repositories" with just this one, Permissions → Contents: Read and write, and an expiry date (90 days is a good balance). When it expires, turn sync off and on with a new one.</p>`;
     }
+    f+=encSection();
     if(nativeOn()){
       f+=`<div class="set-sec">Reminders</div>${fldD('Vitamin D, if not logged by 9pm',seg('s-remind',[['off','Off'],['on','On']],st.remind?'on':'off'))}
         <p class="muted" style="margin:-6px 2px 12px">A notification from this phone only, once a day, cleared automatically once it's logged.</p>`;
@@ -1626,7 +1678,8 @@ async function shareFile(name,text,mime){
 async function doBackup(silent){
   const st=S.settings,obj={app:'yupu',version:1,exportedAt:Date.now(),device:st.device,settings:{name:st.name,dob:st.dob,sex:st.sex,updatedAt:st.updatedAt},events:S.events};
   const nm=`yupu-backup-${stamp()}${st.device?'-'+st.device.replace(/[^\w-]+/g,''):''}.json`;
-  const ok=await shareFile(nm,JSON.stringify(obj),'application/json');
+  let text;try{text=await outText(JSON.stringify(obj));}catch(e){toast('Enter the passphrase in Settings → Encryption first.');return false;}
+  const ok=await shareFile(nm,text,'application/json');
   if(ok){S.lastBackup=Date.now();save();if(tab==='today'&&!sheetOpen())render();if(!silent)toast('Backup ready');}
   return ok;
 }
@@ -1636,20 +1689,77 @@ async function syncNow(){
   if(ok) toast(`Backup saved${folder}. Tap Import to pick up your partner's file.`,()=>{$('#importFile').click();},'Import',true);
   else toast('Tap Import to pick up your partner\'s file whenever you\'re ready.',()=>{$('#importFile').click();},'Import',true);
 }
+/* ---------- checking data from outside (3.5) ----------
+   Everything that arrives from a file or from the sync repository passes through here before
+   it is merged: backups, Nara imports, the other phone's month files, running timers, the
+   profile and restore points. Unknown types, broken ids or times, and fields of the wrong
+   kind are dropped, text is capped, and only known values are kept for fields that the app
+   looks up (diaper kind, stool colour…). Nothing malformed reaches the screen or storage. */
+const ID_RX=/^[A-Za-z0-9_.:-]{1,80}$/,KEY_RX=/^[a-z][A-Za-z0-9]{0,23}$/,BAD_KEYS=new Set(['constructor','prototype','toString','valueOf','hasOwnProperty']);
+const isObj=x=>!!x&&typeof x==='object'&&!Array.isArray(x)&&Object.getPrototypeOf(x)===Object.prototype;
+const okTime=t=>typeof t==='number'&&isFinite(t)&&t>946684800000&&t<Date.now()+366*864e5;
+const capStr=(v,n)=>typeof v==='string'?v.slice(0,n):undefined;
+const ENUMS={kind:{diaper:Object.keys(DKIND),bottle:['breastmilk','formula']},last:['l','r'],reaction:Object.keys(REACT),color:Object.keys(STOOL),cons:Object.keys(CONS),amt:Object.keys(AMT),form:Object.keys(MED_FORM),unit:{solids:['tsp','tbsp','g'],med:MED_UNITS}};
+function cleanData(type,d){
+  if(!isObj(d))return null;const out={};
+  for(const [k,v] of Object.entries(d)){
+    if(!KEY_RX.test(k)||BAD_KEYS.has(k))continue;
+    if(typeof v==='string')out[k]=v.slice(0,k==='note'?2000:200);
+    else if(typeof v==='number'){if(isFinite(v))out[k]=v;}
+    else if(typeof v==='boolean')out[k]=v;
+    else if(Array.isArray(v))out[k]=v.filter(x=>typeof x==='string').slice(0,30).map(x=>x.slice(0,60));
+  }
+  for(const [k,allow] of Object.entries(ENUMS)){if(!(k in out))continue;const list=Array.isArray(allow)?allow:allow[type];if(list&&!list.includes(out[k]))delete out[k];}
+  if(out.x)out.x=out.x.filter(x=>SX[x]);
+  return out;
+}
+function cleanVersion(type,v){
+  if(!isObj(v)||!okTime(v.start))return null;const d=cleanData(v.type&&LABEL[v.type]?v.type:type,v.data||{});if(!d)return null;
+  const o={start:v.start,data:d,at:okTime(v.at)?v.at:0,by:capStr(v.by,40)||''};if(okTime(v.end)&&v.end>=v.start)o.end=v.end;if(v.type&&LABEL[v.type])o.type=v.type;return o;
+}
+// One entry from outside, cleaned, or null when it can't be used.
+function sanitizeEvent(e){
+  if(!isObj(e)||typeof e.id!=='string'||!ID_RX.test(e.id)||!LABEL[e.type]||!okTime(e.start))return null;
+  const o={id:e.id,type:e.type,start:e.start};
+  const num=k=>{if(typeof e[k]==='number'&&isFinite(e[k]))o[k]=e[k];};
+  num('updatedAt');num('created');
+  ['by','editBy','delBy'].forEach(k=>{const v=capStr(e[k],40);if(v!=null)o[k]=v;});
+  if(e.deleted===true){o.deleted=true;if(e.prev){const p=sanitizeEvent({...e.prev,deleted:false,prev:null});if(p)o.prev=p;}return o;}
+  if(e.end!=null){if(!okTime(e.end)||e.end<e.start)return null;o.end=e.end;}
+  const d=cleanData(e.type,e.data==null?{}:e.data);if(!d)return null;o.data=d;
+  if(Array.isArray(e.hist))o.hist=e.hist.slice(-5).map(v=>cleanVersion(e.type,v)).filter(Boolean);
+  if(e.keep===true)o.keep=true;
+  return o;
+}
+// Running timers from the other phone.
+function sanitizeActive(kind,v){
+  if(v==null)return null;if(!isObj(v)||typeof v.id!=='string'||!ID_RX.test(v.id)||!okTime(v.start))return undefined;
+  const o={id:v.id,start:v.start,by:capStr(v.by,40)||''};if(okTime(v.ack))o.ack=v.ack;
+  if(kind==='nurse'){if(!Array.isArray(v.segs))return undefined;
+    o.segs=v.segs.slice(0,200).filter(x=>isObj(x)&&(x.side==='l'||x.side==='r')&&okTime(x.from)&&(x.to==null||okTime(x.to))).map(x=>({side:x.side,from:x.from,to:x.to==null?null:x.to}));
+    if(!o.segs.length)return undefined;}
+  return o;
+}
+function cleanProfile(r){
+  if(!isObj(r))return null;const dob=typeof r.dob==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.dob)?r.dob:'';
+  return {name:capStr(r.name,60)||'',dob,sex:r.sex==='f'||r.sex==='m'?r.sex:'',updatedAt:typeof r.updatedAt==='number'&&isFinite(r.updatedAt)?r.updatedAt:0};
+}
 function mergeIn(obj){
   if(!obj||(obj.app!=='yupu'&&obj.app!=='nest')||!Array.isArray(obj.events)) throw new Error('This file is not a Yupu baby backup.');
   const map=new Map(S.events.map(e=>[e.id,e]));let added=0,updated=0,dupes=0;
   // Entries imported from Nara get checked against what was already logged here, so days logged in both apps don't double up.
   const near={};S.events.forEach(e=>{if(!e.deleted&&!String(e.id).startsWith('nara-'))(near[e.type]=near[e.type]||[]).push(e.start);});
   const isDupe=e=>String(e.id).startsWith('nara-')&&(near[e.type]||[]).some(s=>Math.abs(s-e.start)<=5*6e4);
-  for(const e of obj.events){
-    if(!e||!e.id||!e.type) continue;const cur=map.get(e.id);
+  let skipped=0;
+  for(const raw of obj.events){
+    const e=sanitizeEvent(raw);if(!e){skipped++;continue;}const cur=map.get(e.id);
     if(!cur){if(!e.deleted&&isDupe(e)){dupes++;continue;}map.set(e.id,e);markDirty(monthKey(e.start));if(!e.deleted)added++;}
     else if((e.updatedAt||0)>(cur.updatedAt||0)){map.set(e.id,e);markDirty(monthKey(e.start),monthKey(cur.start));updated++;}
   }
   S.events=[...map.values()];
-  if(obj.settings&&(obj.settings.updatedAt||0)>(S.settings.updatedAt||0)){const s=obj.settings;Object.assign(S.settings,{name:s.name||'',dob:s.dob||'',sex:s.sex||'',updatedAt:s.updatedAt});markDirty('profile');}
-  S.lastImport=Date.now();save();return {added,updated,dupes};
+  const ps=cleanProfile(obj.settings);
+  if(ps&&ps.updatedAt>(S.settings.updatedAt||0)){Object.assign(S.settings,ps);markDirty('profile');}
+  S.lastImport=Date.now();save();return {added,updated,dupes,skipped};
 }
 /* ---------- Nara Baby CSV import ---------- */
 function parseCSV(text){
@@ -1674,7 +1784,7 @@ function naraToBackup(text){
     if(g('[Profile] Birth Date')) profile={name:g('Profile Name'),dob:g('[Profile] Birth Date'),sex:g('[Profile] Sex')==='FEMALE'?'f':g('[Profile] Sex')==='MALE'?'m':''};
     const key=g('_activityKey'),start=+g('Start Date/time (Epoch)');
     if(!type||!key||!start) continue;
-    const d={},e={id:'nara-'+key,start,data:d,by:'',updatedAt:1};let note=g('Note');
+    const d={},e={id:'nara-'+key.replace(/[^A-Za-z0-9_.:-]/g,'').slice(0,70),start,data:d,by:'',updatedAt:1};let note=g('Note');
     const takeTemp=()=>{const m=TEMP.exec(note);if(m){d.temp=+(m[2]+'.'+(m[3]||'0'));note=note.replace(m[0],m[1]).replace(/\s+/g,' ').trim();}};
     switch(type){
       case 'Breastfeed':{e.type='nurse';d.l=+g('[Breastfeed] Left Duration (Seconds)')||0;d.r=+g('[Breastfeed] Right Duration (Seconds)')||0;
@@ -1723,16 +1833,72 @@ function toCSV(){
 // Each month of entries is one file (yupu/2026-09.json) plus yupu/profile.json.
 // Pull: list the folder, fetch only files whose version changed, merge by id + updatedAt.
 // Push: rewrite only months changed on this phone, with the file's version as a lock; on a clash, re-pull and retry.
-const APP_VERSION='3.4.0',APP_DATE='2026-11-26',SYNC_DIR='yupu';
+const APP_VERSION='3.5.0',APP_DATE='2026-11-27',SYNC_DIR='yupu';
 const monthKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1);};
 let syncing=false,syncTimer=null,syncAgain=false;
 function markDirty(...keys){if(!S.sync)return;S.sync.dirty=S.sync.dirty||{};keys.forEach(k=>{if(k)S.sync.dirty[k]=1;});scheduleSync();}
 function scheduleSync(ms=15000){if(!S.sync||!S.sync.on)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>autoSync(),ms);}
 function normRepo(v){return String(v||'').trim().replace(/^https?:\/\/github\.com\//i,'').replace(/\.git$/,'').replace(/^\/+|\/+$/g,'');}
+/* ---------- secrets: the GitHub token and the encryption passphrase (3.5) ----------
+   In the iOS app shell they go into the iPhone Keychain (Capacitor secure storage) and are
+   kept in memory only. On the web app they stay in the app's own storage on this phone, as
+   before. Neither is ever part of a backup, a sync file or a restore point. */
+const secrets={token:'',pass:''};
+const SSP=()=>{try{return nativeOn()&&CAP().Plugins&&CAP().Plugins.SecureStoragePlugin||null;}catch(e){return null;}};
+async function secretSet(name,val){
+  const P=SSP();
+  if(P){try{if(val)await P.set({key:'yupu-'+name,value:val});else await P.remove({key:'yupu-'+name}).catch(()=>{});secrets[name]=val||'';return 'keychain';}catch(e){}}
+  secrets[name]='';return 'app';
+}
+async function loadSecrets(){const P=SSP();if(!P)return;for(const n of ['token','pass']){try{const r=await P.get({key:'yupu-'+n});if(r&&r.value)secrets[n]=r.value;}catch(e){}}}
+const ghToken=()=>secrets.token||S.sync.token||'';
+const encPass=()=>secrets.pass||S.enc.pass||'';
+
+/* ---------- end-to-end encryption (3.5, opt-in) ----------
+   With a passphrase set, every file that leaves the phone (month files, running timers,
+   profile, restore points, backup files) is sealed before it goes: PBKDF2-SHA256 with
+   600,000 iterations turns the passphrase and a random salt into an AES-GCM 256 key, and
+   each file gets its own random IV. The salt and settings sit in a small plain header so
+   the other phone can derive the same key. GitHub, and anyone holding a backup file, only
+   see scrambled data. Reading accepts both sealed and plain files, so phones can switch
+   over one at a time. A sealed file that can't be opened stops the sync before anything is
+   written, so a wrong passphrase never overwrites data. */
+const ENC_IT=600000,ENC_AAD=new TextEncoder().encode('yupu-v1');
+const b64u8=u8=>{let x='';for(let i=0;i<u8.length;i+=0x8000)x+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(x);};
+const u8b64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+const keyCache=new Map();
+function deriveKey(pass,saltB64,it=ENC_IT){
+  const k=`${it}|${saltB64}|${pass}`;if(keyCache.has(k))return keyCache.get(k);
+  const p=crypto.subtle.importKey('raw',new TextEncoder().encode(pass.normalize('NFC')),'PBKDF2',false,['deriveKey'])
+    .then(base=>crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:u8b64(saltB64),iterations:it},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']));
+  keyCache.set(k,p);p.catch(()=>keyCache.delete(k));return p;
+}
+const newSalt=()=>b64u8(crypto.getRandomValues(new Uint8Array(16)));
+class EncError extends Error{constructor(code){super(code);this.code=code;}}
+const isSealed=o=>!!o&&typeof o==='object'&&o.app==='yupu'&&o.enc===1&&typeof o.data==='string';
+async function sealText(text,pass=encPass(),salt=S.enc.salt){
+  if(!pass||!salt)throw new EncError('locked');
+  const iv=crypto.getRandomValues(new Uint8Array(12)),key=await deriveKey(pass,salt);
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:ENC_AAD},key,new TextEncoder().encode(text)));
+  return JSON.stringify({app:'yupu',enc:1,alg:'AES-GCM-256',kdf:'PBKDF2-SHA256',it:ENC_IT,salt,iv:b64u8(iv),data:b64u8(ct)});
+}
+// Parses a file; a sealed one is opened with the passphrase (EncError 'locked' without one, 'passphrase' when it doesn't fit).
+async function openText(text,pass=encPass()){
+  const o=JSON.parse(text);if(!isSealed(o))return o;
+  if(!pass)throw new EncError('locked');
+  const it=Math.round(+o.it);if(!(it>=100000&&it<=5000000)||typeof o.salt!=='string'||typeof o.iv!=='string')throw new EncError('format');
+  let plain;
+  try{const key=await deriveKey(pass,o.salt,it);plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:u8b64(o.iv),additionalData:ENC_AAD},key,u8b64(o.data));}
+  catch(e){throw new EncError('passphrase');}
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+// What goes up to GitHub or into a backup file: sealed when encryption is on.
+const outText=async text=>S.enc.on?sealText(text):text;
+
 async function gh(path,{method='GET',body,accept,repo,token}={}){
   const s=S.sync;
   return fetch('https://api.github.com/repos/'+(repo||s.repo)+path,{method,cache:'no-store',body,
-    headers:{'Authorization':'Bearer '+(token||s.token),'Accept':accept||'application/vnd.github+json',...(body?{'Content-Type':'application/json'}:{})}});
+    headers:{'Authorization':'Bearer '+(token||ghToken()),'Accept':accept||'application/vnd.github+json',...(body?{'Content-Type':'application/json'}:{})}});
 }
 function b64enc(str){const b=new TextEncoder().encode(str);let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s);}
 function syncErrText(st){
@@ -1741,6 +1907,9 @@ function syncErrText(st){
   if(st===404) return 'Repository not found, or this token has no access to it.';
   if(st==='conflict') return 'Both phones were syncing at once. Will retry shortly.';
   if(st==='net') return 'Could not reach GitHub. Will retry when online.';
+  if(st==='locked') return 'Sync files are encrypted. Enter the passphrase in Settings → Encryption.';
+  if(st==='passphrase') return 'The passphrase on this phone does not open the sync files. Check it in Settings → Encryption.';
+  if(st==='format') return 'A sync file could not be read. Nothing was changed.';
   return 'GitHub error '+st+'. Will retry.';
 }
 function agoText(ts){const m=Math.round((Date.now()-ts)/6e4);return m<1?'just now':m<60?`${m} min ago`:dur(Date.now()-ts)+' ago';}
@@ -1753,20 +1922,21 @@ function mergeRemote(obj){
   if(!obj||obj.app!=='yupu')return false;let ch=false;
   if(obj.kind==='active'){
     S.activeUpd=S.activeUpd||{nurse:0,sleep:0};
-    for(const k of ['nurse','sleep']){const r=obj[k];if(r&&(r.upd||0)>(S.activeUpd[k]||0)){S.active[k]=r.v||null;S.activeUpd[k]=r.upd;ch=true;}}
+    for(const k of ['nurse','sleep']){const r=obj[k];if(!isObj(r)||typeof r.upd!=='number'||!isFinite(r.upd))continue;
+      const v=sanitizeActive(k,r.v);if(v===undefined)continue;if(r.upd>(S.activeUpd[k]||0)){S.active[k]=v;S.activeUpd[k]=r.upd;ch=true;}}
     return ch;
   }
-  if(obj.kind==='profile'){const r=obj.settings||{};if((r.updatedAt||0)>(S.settings.updatedAt||0)){Object.assign(S.settings,{name:r.name||'',dob:r.dob||'',sex:r.sex||'',updatedAt:r.updatedAt});ch=true;}return ch;}
+  if(obj.kind==='profile'){const r=cleanProfile(obj.settings);if(r&&r.updatedAt>(S.settings.updatedAt||0)){Object.assign(S.settings,r);ch=true;}return ch;}
   const idx=new Map(S.events.map((e,i)=>[e.id,i]));
-  for(const e of obj.events||[]){
-    if(!e||!e.id||!e.type)continue;const i=idx.get(e.id);
+  for(const raw of Array.isArray(obj.events)?obj.events:[]){
+    const e=sanitizeEvent(raw);if(!e)continue;const i=idx.get(e.id);
     if(i==null){S.events.push(e);idx.set(e.id,S.events.length-1);ch=true;}
     else if((e.updatedAt||0)>(S.events[i].updatedAt||0)){const old=S.events[i];S.events[i]=e;ch=true;if(monthKey(old.start)!==monthKey(e.start))S.sync.dirty[monthKey(old.start)]=1;}
   }
   return ch;
 }
 async function autoSync(){
-  const s=S.sync;if(!s.on||!s.repo||!s.token)return;
+  const s=S.sync;if(!s.on||!s.repo||!ghToken())return;
   if(syncing){syncAgain=true;return;}
   if(!navigator.onLine){setSyncUI();return;}
   syncing=true;setSyncUI();let changed=false;
@@ -1781,7 +1951,9 @@ async function autoSync(){
         if(s.shas[f.name]===f.sha)continue;
         const fr=await gh('/contents/'+SYNC_DIR+'/'+f.name,{accept:'application/vnd.github.raw+json'});
         if(!fr.ok)throw fr.status;
-        try{if(mergeRemote(JSON.parse(await fr.text())))changed=true;}catch(e){}
+        // A sealed file that can't be opened stops here, before anything is written back.
+        let obj;try{obj=await openText(await fr.text());}catch(e){if(e instanceof EncError)throw e.code;continue;}
+        if(mergeRemote(obj))changed=true;
         s.shas[f.name]=f.sha;
       }
       save();
@@ -1789,7 +1961,8 @@ async function autoSync(){
       for(const k of Object.keys(s.dirty||{})){
         const name=k+'.json';
         if(k!=='profile'&&k!=='active'&&!remote[name]&&!S.events.some(e=>monthKey(e.start)===k)){delete s.dirty[k];continue;}
-        const pr=await gh('/contents/'+SYNC_DIR+'/'+name,{method:'PUT',body:JSON.stringify({message:`${S.settings.device||'Yupu baby'}: ${k}`,content:b64enc(k==='profile'?profileFile():k==='active'?activeFile():monthFile(k)),...(remote[name]?{sha:remote[name]}:{})})});
+        let out;try{out=await outText(k==='profile'?profileFile():k==='active'?activeFile():monthFile(k));}catch(e){throw e instanceof EncError?e.code:e;}
+        const pr=await gh('/contents/'+SYNC_DIR+'/'+name,{method:'PUT',body:JSON.stringify({message:`${S.settings.device||'Yupu baby'}: ${k}`,content:b64enc(out),...(remote[name]?{sha:remote[name]}:{})})});
         if(pr.status===409||pr.status===422){clash=true;break;}
         if(!pr.ok)throw pr.status;
         const j=await pr.json();s.shas[name]=remote[name]=j.content.sha;delete s.dirty[k];save();
@@ -1817,7 +1990,7 @@ async function maybeSnapshot(){
   if(!s.on||s.lastSnap===mk||!S.events.length)return;
   try{
     const st=S.settings,body={app:'yupu',kind:'snapshot',month:mk,takenAt:Date.now(),by:st.device||'',settings:{name:st.name,dob:st.dob,sex:st.sex,updatedAt:st.updatedAt},events:S.events};
-    const r=await gh(`/contents/${SYNC_DIR}/snapshots/${mk}.json`,{method:'PUT',body:JSON.stringify({message:`Restore point ${mk}`,content:b64enc(JSON.stringify(body))})});
+    const r=await gh(`/contents/${SYNC_DIR}/snapshots/${mk}.json`,{method:'PUT',body:JSON.stringify({message:`Restore point ${mk}`,content:b64enc(await outText(JSON.stringify(body)))})});
     if(r.ok||r.status===422||r.status===409){s.lastSnap=mk;save();}
   }catch(e){}
 }
@@ -1834,15 +2007,25 @@ async function openRestorePoints(){
 }
 async function restoreFrom(k){
   let snap;
-  try{const r=await gh(`/contents/${SYNC_DIR}/snapshots/${k}.json`,{accept:'application/vnd.github.raw+json'});if(!r.ok)throw r.status;snap=JSON.parse(await r.text());}
-  catch(e){return toast('Could not load that restore point.');}
+  try{const r=await gh(`/contents/${SYNC_DIR}/snapshots/${k}.json`,{accept:'application/vnd.github.raw+json'});if(!r.ok)throw r.status;snap=await openText(await r.text());}
+  catch(e){return toast(e instanceof EncError?syncErrText(e.code):'Could not load that restore point.');}
   const map=new Map(S.events.map((e,i)=>[e.id,i])),bring=[];
-  for(const e of snap.events||[]){if(!e||!e.id||e.deleted)continue;const i=map.get(e.id);if(i==null||S.events[i].deleted)bring.push(e);}
+  for(const raw of Array.isArray(snap&&snap.events)?snap.events:[]){const e=sanitizeEvent(raw);if(!e||e.deleted)continue;const i=map.get(e.id);if(i==null||S.events[i].deleted)bring.push(e);}
   if(!bring.length)return toast('Nothing to bring back. Every entry from then is still here.');
   if(!confirm(tr(`Bring back ${bring.length} ${bring.length===1?'entry':'entries'} from this restore point?`)))return;
   const now=Date.now();
   for(const e of bring){const ne={...e,updatedAt:now};const i=map.get(e.id);if(i==null)S.events.push(ne);else S.events[i]=ne;markDirty(monthKey(e.start));}
   save();closeSheet();render();toast(`${bring.length} ${bring.length===1?'entry':'entries'} restored`);
+}
+// Returns a warning when the token reaches more than the one data repository, where that can be seen.
+async function tokenReach(repo,token,res){
+  if(/^gh[pousr]_/.test(token)||(res&&res.headers&&res.headers.get('x-oauth-scopes')))return 'This is a classic token, which can reach all your repositories. A fine-grained token limited to this one repository (Contents: Read and write) is safer. Use this token anyway?';
+  try{
+    const r=await fetch('https://api.github.com/user/repos?per_page=100&visibility=private',{cache:'no-store',headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json'}});
+    if(r.ok){const list=await r.json();const others=Array.isArray(list)?list.filter(x=>x&&x.full_name&&x.full_name.toLowerCase()!==repo.toLowerCase()):[];
+      if(others.length)return `This token can also reach ${others.length} other private ${others.length===1?'repository':'repositories'}. Limit it to the one data repository in GitHub's token settings. Use this token anyway?`;}
+  }catch(e){}
+  return '';
 }
 async function syncTurnOn(){
   const repo=normRepo($('#s-repo').value),token=$('#s-token').value.trim();
@@ -1854,7 +2037,12 @@ async function syncTurnOn(){
   if(!r.ok)return toast('Repository not found, or the token has no access to it.');
   const info=await r.json();
   if(!info.private)return toast('That repository is public. Use a private one for your baby\'s data.');
-  Object.assign(S.sync,{repo,token,on:true,err:'',shas:{},dirty:{}});
+  // Keep the token narrow: a classic token, or one that also reaches other private repositories,
+  // would let anyone holding this phone's token read far more than the baby log.
+  const wide=await tokenReach(repo,token,r);
+  if(wide&&!confirm(tr(wide)))return;
+  const where=await secretSet('token',token);
+  Object.assign(S.sync,{repo,token:where==='keychain'?'':token,on:true,err:'',shas:{},dirty:{}});
   const months=new Set(S.events.map(e=>monthKey(e.start)));months.forEach(k=>S.sync.dirty[k]=1);
   if(S.settings.dob)S.sync.dirty.profile=1;
   S.sync.dirty.active=1;
@@ -1862,7 +2050,7 @@ async function syncTurnOn(){
 }
 function syncTurnOff(){
   if(!confirm(tr('Turn off automatic sync on this phone? Your entries stay on the phone, and the token is removed from it.')))return;
-  Object.assign(S.sync,{on:false,token:'',err:'',shas:{},dirty:{}});save();setSyncUI();openSettings(false);toast('Sync turned off');
+  secretSet('token','');Object.assign(S.sync,{on:false,token:'',err:'',shas:{},dirty:{}});save();setSyncUI();openSettings(false);toast('Sync turned off');
 }
 
 /* ---------- timer start adjustments ---------- */
@@ -2120,6 +2308,10 @@ document.addEventListener('click',ev=>{
       const sw=$('#sheet [data-feat="solids"]'),dob=fromInput(($('#s-dob')||{}).value);
       if(t.dataset.n==='3'&&sw&&!sw.dataset.touched)sw.checked=!(dob>0)||daysBetween(dob,Date.now())>=150;}break;}
     case 'ord': moveOrder(t.dataset.v,+t.dataset.d);break;
+    case 'enc-on': encTurnOn(false);break;
+    case 'enc-use': encTurnOn(true);break;
+    case 'enc-off': encTurnOff();break;
+    case 'enc-forget': encForget();break;
     case 'pal': lookChange(()=>{S.settings.palette=t.dataset.v;});haptic('Light');break;
     case 'ob-sync': saveSettings();openSettings(false);setTimeout(()=>{const r=$('#s-repo');if(r)r.scrollIntoView({block:'center'});},350);break;
     case 'reload': location.reload();break;
@@ -2176,23 +2368,34 @@ document.addEventListener('change',ev=>{
   const sub=document.querySelector(`.sw-sub[data-for="${c.dataset.feat}"]`);if(sub)sub.hidden=!c.checked;
   if(c.dataset.feat==='daily')refreshVitReminder();
 });
+// An encrypted backup opens with this phone's passphrase, or asks for the one it was made with.
+async function openBackup(text){
+  try{return await openText(text);}
+  catch(e){
+    if(!(e instanceof EncError)||e.code==='format')throw e;
+    const p=prompt(tr('This backup is encrypted. Enter its passphrase:'));if(!p)throw e;
+    return openText(text,p);
+  }
+}
 $('#importFile').addEventListener('change',async ev=>{
   const files=[...ev.target.files];ev.target.value='';if(!files.length)return;
-  let added=0,updated=0,dupes=0,bad=0;
+  let added=0,updated=0,dupes=0,bad=0,skipped=0,locked=0;
   for(const file of files){
     try{const text=await file.text();
-      const r=mergeIn(/^\ufeff?"?Type"?,/.test(text)?naraToBackup(text):JSON.parse(text));added+=r.added;updated+=r.updated;dupes+=r.dupes||0;}
-    catch(e){bad++;}
+      const r=mergeIn(/^\ufeff?"?Type"?,/.test(text)?naraToBackup(text):await openBackup(text));added+=r.added;updated+=r.updated;dupes+=r.dupes||0;skipped+=r.skipped||0;}
+    catch(e){bad++;if(e instanceof EncError)locked++;}
   }
   closeSheet();applyTheme();render();
-  if(bad&&!added&&!updated) toast(files.length>1?'None of the selected files were readable backups.':'That file is not a readable backup.');
-  else toast(`Imported ${added} new, ${updated} updated${dupes?`, ${dupes} already logged here`:''}${bad?`, ${bad} file${bad>1?'s':''} skipped`:''}`);
+  if(locked&&!added&&!updated) toast('That passphrase does not open the encrypted backup. Nothing was imported.');
+  else if(bad&&!added&&!updated) toast(files.length>1?'None of the selected files were readable backups.':'That file is not a readable backup.');
+  else toast(`Imported ${added} new, ${updated} updated${dupes?`, ${dupes} already logged here`:''}${skipped?`, ${skipped} unreadable ${skipped===1?'entry':'entries'} left out`:''}${bad?`, ${bad} file${bad>1?'s':''} skipped`:''}`);
 });
 
 /* ---------- boot ---------- */
 $('#nightBtn').innerHTML=I.moon;$('#gearBtn').innerHTML=I.gear;
 (async()=>{
 S=await loadState();
+await loadSecrets();
 migrateEntries();
 if(!S.settings.v33){S.settings.v33=1;if(S.events.some(e=>!e.deleted&&e.type==='pump'))S.settings.features.pump=true;save();}
 applyTheme();render();
